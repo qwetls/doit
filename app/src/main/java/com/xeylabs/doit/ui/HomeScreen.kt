@@ -43,9 +43,14 @@ import com.xeylabs.doit.ui.theme.WarningAmber
 import com.xeylabs.doit.ui.theme.categoryColor
 import com.xeylabs.doit.viewmodel.InsightKind
 import com.xeylabs.doit.viewmodel.MainViewModel
+import com.xeylabs.doit.viewmodel.UpdateViewModel
 
 @Composable
-fun HomeScreen(viewModel: MainViewModel, onOpenSavings: () -> Unit) {
+fun HomeScreen(
+    viewModel: MainViewModel,
+    updateViewModel: UpdateViewModel,
+    onOpenSavings: () -> Unit
+) {
     val state by viewModel.uiState.collectAsState()
     val month by viewModel.selectedMonth.collectAsState()
     val scrollState = rememberScrollState()
@@ -58,6 +63,8 @@ fun HomeScreen(viewModel: MainViewModel, onOpenSavings: () -> Unit) {
         modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        UpdateCard(updateViewModel)
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,

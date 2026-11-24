@@ -37,6 +37,7 @@ import com.xeylabs.doit.ui.QuickAddSheet
 import com.xeylabs.doit.ui.SavingsScreen
 import com.xeylabs.doit.ui.theme.DoitTheme
 import com.xeylabs.doit.viewmodel.MainViewModel
+import com.xeylabs.doit.viewmodel.UpdateViewModel
 import com.xeylabs.doit.widget.DoitWidgetProvider
 
 private data class Tab(val label: String, val icon: ImageVector)
@@ -56,12 +57,13 @@ class MainActivity : ComponentActivity() {
         setContent {
             DoitTheme {
                 val viewModel: MainViewModel = viewModel()
+                val updateViewModel: UpdateViewModel = viewModel()
                 val onboardingDone by viewModel.onboardingDone.collectAsState()
 
                 if (!onboardingDone) {
                     OnboardingScreen(viewModel)
                 } else {
-                    MainScaffold(viewModel)
+                    MainScaffold(viewModel, updateViewModel)
                 }
             }
         }
@@ -70,7 +72,7 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MainScaffold(viewModel: MainViewModel) {
+private fun MainScaffold(viewModel: MainViewModel, updateViewModel: UpdateViewModel) {
     var selectedTab by remember { mutableStateOf(0) }
     var showAdd by remember { mutableStateOf(false) }
 
@@ -100,7 +102,7 @@ private fun MainScaffold(viewModel: MainViewModel) {
     ) { padding ->
         Box(modifier = Modifier.padding(padding)) {
             when (selectedTab) {
-                0 -> HomeScreen(viewModel, onOpenSavings = { selectedTab = 2 })
+                0 -> HomeScreen(viewModel, updateViewModel, onOpenSavings = { selectedTab = 2 })
                 1 -> HistoryScreen(viewModel)
                 2 -> SavingsScreen(viewModel)
                 else -> BudgetScreen(viewModel)

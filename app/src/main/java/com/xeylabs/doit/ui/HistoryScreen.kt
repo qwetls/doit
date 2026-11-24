@@ -67,7 +67,12 @@ fun HistoryScreen(viewModel: MainViewModel) {
                 FilterChip(
                     selected = selectedWalletId == wallet.id,
                     onClick = { viewModel.setHistoryWallet(wallet.id) },
-                    label = { Text(wallet.name) }
+                    label = {
+                        Text(
+                            wallet.name + " · " +
+                                com.xeylabs.doit.data.walletCurrency(wallet).symbol
+                        )
+                    }
                 )
             }
         }
@@ -117,7 +122,8 @@ fun HistoryScreen(viewModel: MainViewModel) {
                         TransactionRow(
                             tx = tx,
                             onEdit = { editingTx = tx },
-                            onDelete = { viewModel.deleteTransaction(tx) }
+                            onDelete = { viewModel.deleteTransaction(tx) },
+                            currency = viewModel.walletCurrency(tx.walletId)
                         )
                     }
                 }

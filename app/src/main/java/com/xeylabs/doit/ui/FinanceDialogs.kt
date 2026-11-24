@@ -38,13 +38,16 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.xeylabs.doit.data.Bill
 import com.xeylabs.doit.data.Category
+import com.xeylabs.doit.data.Currency
 import com.xeylabs.doit.data.Debt
 import com.xeylabs.doit.data.DebtDirection
+import com.xeylabs.doit.data.DebtKind
 import com.xeylabs.doit.data.RecurringFrequency
 import com.xeylabs.doit.data.RecurringTransaction
 import com.xeylabs.doit.data.TxnType
 import com.xeylabs.doit.data.Wallet
 import com.xeylabs.doit.data.WalletType
+import com.xeylabs.doit.data.walletCurrency
 import java.time.LocalDate
 
 // ---------- Dompet ----------
@@ -53,10 +56,11 @@ import java.time.LocalDate
 fun WalletEditDialog(
     initial: Wallet?,
     onDismiss: () -> Unit,
-    onSave: (name: String, type: WalletType, initialBalance: Long) -> Unit
+    onSave: (name: String, type: WalletType, currency: Currency, initialBalance: Long) -> Unit
 ) {
     var name by remember { mutableStateOf(initial?.name ?: "") }
     var type by remember { mutableStateOf(initial?.let { WalletType.fromName(it.type) } ?: WalletType.TUNAI) }
+    var currency by remember { mutableStateOf(walletCurrency(initial)) }
     var balanceText by remember { mutableStateOf(if (initial != null) initial.initialBalance.toString() else "") }
     var error by remember { mutableStateOf("") }
 
@@ -82,10 +86,20 @@ fun WalletEditDialog(
                         )
                     }
                 }
+                Text("Mata uang (khusus Rp dan Dollar)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(Currency.entries) { option ->
+                        FilterChip(
+                            selected = currency == option,
+                            onClick = { currency = option },
+                            label = { Text(option.label) }
+                        )
+                    }
+                }
                 OutlinedTextField(
                     value = balanceText,
                     onValueChange = { balanceText = it.filter { ch -> ch.isDigit() } },
-                    label = { Text("Saldo awal (Rp)") },
+                    label = { Text("Saldo awal (" + currency.symbol + ")") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
@@ -102,7 +116,7 @@ fun WalletEditDialog(
                     error = "Isi nama dompet"
                     return@Button
                 }
-                onSave(name.trim(), type, balance)
+                onSave(name.trim(), type, currency, balance)
             }) { Text("Simpan") }
         },
         dismissButton = {
@@ -116,17 +130,23 @@ fun WalletEditDialog(
 fun TransferDialog(
     wallets: List<Wallet>,
     onDismiss: () -> Unit,
-    onSave: (fromId: Long, toId: Long, amount: Long, note: String) -> Unit
+    onSave: (fromId: Long, toId: Long, amount: Long, receivedAmount: Long?, note: String) -> Unit
 ) {
     var fromId by remember { mutableStateOf(wallets.firstOrNull()?.id ?: 0L) }
     var toId by remember { mutableStateOf(wallets.getOrNull(1)?.id ?: 0L) }
     var amountText by remember { mutableStateOf("") }
+    var receivedText by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var fromExpanded by remember { mutableStateOf(false) }
     var toExpanded by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
 
     fun walletName(id: Long): String = wallets.firstOrNull { it.id == id }?.name ?: "-"
+    val fromWallet = wallets.firstOrNull { it.id == fromId }
+    val toWallet = wallets.firstOrNull { it.id == toId }
+    val fromCurrency = walletCurrency(fromWallet)
+    val toCurrency = walletCurrency(toWallet)
+    val crossCurrency = fromWallet != null && toWallet != null && fromCurrency != toCurrency
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -186,14 +206,37 @@ fun TransferDialog(
                         }
                     }
                 }
+                // Arah transfer ditampilkan eksplisit: "Tunai → GoPay".
+                if (fromWallet != null && toWallet != null && fromId != toId) {
+                    Text(
+                        walletName(fromId) + " → " + walletName(toId),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
                 OutlinedTextField(
                     value = amountText,
                     onValueChange = { amountText = it.filter { ch -> ch.isDigit() } },
-                    label = { Text("Jumlah (Rp)") },
+                    label = { Text("Jumlah dikirim (" + fromCurrency.symbol + ")") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+                if (crossCurrency) {
+                    Text(
+                        "Mata uang berbeda — tidak ada kurs otomatis. Isi sendiri jumlah yang diterima dompet tujuan.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = receivedText,
+                        onValueChange = { receivedText = it.filter { ch -> ch.isDigit() } },
+                        label = { Text("Jumlah diterima (" + toCurrency.symbol + ")") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
                 OutlinedTextField(
                     value = note,
                     onValueChange = { note = it },
@@ -209,11 +252,14 @@ fun TransferDialog(
         confirmButton = {
             Button(onClick = {
                 val amount = amountText.toLongOrNull()
+                val received = if (crossCurrency) receivedText.toLongOrNull() else null
                 when {
                     fromId == 0L || toId == 0L -> error = "Pilih dompet asal dan tujuan"
                     fromId == toId -> error = "Dompet asal dan tujuan harus berbeda"
                     amount == null || amount <= 0 -> error = "Masukkan jumlah lebih dari 0"
-                    else -> onSave(fromId, toId, amount, note.trim())
+                    crossCurrency && (received == null || received <= 0) ->
+                        error = "Isi jumlah yang diterima dompet tujuan"
+                    else -> onSave(fromId, toId, amount, received, note.trim())
                 }
             }) { Text("Transfer") }
         },
@@ -404,26 +450,55 @@ fun RecurringEditDialog(
 @Composable
 fun DebtEditDialog(
     onDismiss: () -> Unit,
-    onSave: (personName: String, amount: Long, direction: DebtDirection, date: LocalDate) -> Unit
+    onSave: (personName: String, amount: Long, direction: DebtDirection, kind: DebtKind, provider: String, date: LocalDate) -> Unit
 ) {
     var personName by remember { mutableStateOf("") }
     var amountText by remember { mutableStateOf("") }
     var direction by remember { mutableStateOf(DebtDirection.BORROWED) }
+    var kind by remember { mutableStateOf(DebtKind.UTANG) }
+    var provider by remember { mutableStateOf("") }
     var date by remember { mutableStateOf(LocalDate.now()) }
     var error by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Utang / piutang baru") },
+        title = { Text("Paylater / utang / piutang baru") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Jenis", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(DebtKind.entries) { option ->
+                        FilterChip(
+                            selected = kind == option,
+                            onClick = {
+                                kind = option
+                                if (option == DebtKind.PAYLATER) direction = DebtDirection.BORROWED
+                            },
+                            label = { Text(option.label) }
+                        )
+                    }
+                }
                 OutlinedTextField(
                     value = personName,
                     onValueChange = { personName = it },
-                    label = { Text("Nama orang") },
+                    label = {
+                        Text(
+                            if (kind == DebtKind.PAYLATER) "Nama paylater (mis. GoPay Later)"
+                            else "Nama orang"
+                        )
+                    },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+                if (kind == DebtKind.PAYLATER) {
+                    OutlinedTextField(
+                        value = provider,
+                        onValueChange = { provider = it },
+                        label = { Text("Penyedia (mis. GoPay)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
                 OutlinedTextField(
                     value = amountText,
                     onValueChange = { amountText = it.filter { ch -> ch.isDigit() } },
@@ -432,19 +507,22 @@ fun DebtEditDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    SegmentedButton(
-                        selected = direction == DebtDirection.BORROWED,
-                        onClick = { direction = DebtDirection.BORROWED },
-                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-                        label = { Text("Kamu meminjam") }
-                    )
-                    SegmentedButton(
-                        selected = direction == DebtDirection.LENT,
-                        onClick = { direction = DebtDirection.LENT },
-                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-                        label = { Text("Kamu meminjamkan") }
-                    )
+                // Paylater selalu berarti kamu meminjam — arah tidak perlu dipilih.
+                if (kind != DebtKind.PAYLATER) {
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        SegmentedButton(
+                            selected = direction == DebtDirection.BORROWED,
+                            onClick = { direction = DebtDirection.BORROWED },
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                            label = { Text("Kamu meminjam") }
+                        )
+                        SegmentedButton(
+                            selected = direction == DebtDirection.LENT,
+                            onClick = { direction = DebtDirection.LENT },
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                            label = { Text("Kamu meminjamkan") }
+                        )
+                    }
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -468,9 +546,9 @@ fun DebtEditDialog(
             Button(onClick = {
                 val amount = amountText.toLongOrNull()
                 when {
-                    personName.isBlank() -> error = "Isi nama orangnya"
+                    personName.isBlank() -> error = "Isi namanya"
                     amount == null || amount <= 0 -> error = "Masukkan jumlah lebih dari 0"
-                    else -> onSave(personName.trim(), amount, direction, date)
+                    else -> onSave(personName.trim(), amount, direction, kind, provider.trim(), date)
                 }
             }) { Text("Simpan") }
         },

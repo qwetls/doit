@@ -1,7 +1,5 @@
 package com.xeylabs.doit.ui
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,13 +12,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -37,6 +40,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.xeylabs.doit.DoitTab
+import com.xeylabs.doit.data.Currency
+import com.xeylabs.doit.data.TxnType
+import com.xeylabs.doit.data.WalletType
 import com.xeylabs.doit.ui.theme.ExpenseRed
 import com.xeylabs.doit.ui.theme.HeroViolet
 import com.xeylabs.doit.ui.theme.IncomeGreen
@@ -53,13 +59,17 @@ import java.time.temporal.ChronoUnit
 fun HomeScreen(
     viewModel: MainViewModel,
     updateViewModel: UpdateViewModel,
-    onNavigate: (DoitTab) -> Unit
+    onNavigate: (DoitTab) -> Unit,
+    onOpenProfile: () -> Unit,
+    onQuickAdd: (TxnType) -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
     val month by viewModel.selectedMonth.collectAsState()
+    val displayName by viewModel.displayName.collectAsState()
     val scrollState = rememberScrollState()
     var chartRange by remember { mutableStateOf(0) }
 
+    val defaultCurrency = Currency.fromCode(state.defaultCurrency)
     val balance = state.monthIncome - state.monthExpense
     val defaultGoal = state.goals.firstOrNull { it.isDefault } ?: state.goals.firstOrNull()
 
@@ -74,11 +84,26 @@ fun HomeScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                "Halo, Adrien",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Profil paling kiri: avatar inisial, ketuk untuk buka Profil & Pengaturan.
+                IconButton(
+                    onClick = onOpenProfile,
+                    modifier = Modifier.size(40.dp).clip(CircleShape).background(HeroViolet)
+                ) {
+                    Text(
+                        text = displayName.trim().firstOrNull()?.uppercase() ?: "A",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    "Halo, $displayName",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            }
             MonthStepper(
                 month = month,
                 onPrev = { viewModel.prevMonth() },
@@ -86,25 +111,67 @@ fun HomeScreen(
             )
         }
 
+        // Hero ala app bank: nominal saldo besar + tombol tambah cepat.
         DoitCard(containerColor = HeroViolet) {
             Text(
-                "Sisa bulan ini",
+                "Total saldo",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             AnimatedMoney(
-                amount = balance,
+                amount = state.totalBalance,
                 style = MaterialTheme.typography.displayLarge,
-                color = if (balance >= 0) MaterialTheme.colorScheme.onSurface else ExpenseRed
+                currency = defaultCurrency
             )
             Spacer(modifier = Modifier.height(12.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                HeroMini("Masuk", state.monthIncome, IncomeGreen)
-                HeroMini("Keluar", state.monthExpense, ExpenseRed)
-                HeroMini("Pemasukan/bln", state.monthlyIncome, MaterialTheme.colorScheme.onSurfaceVariant)
+                HeroMini("Masuk", state.monthIncome, IncomeGreen, defaultCurrency)
+                HeroMini("Keluar", state.monthExpense, ExpenseRed, defaultCurrency)
+                HeroMini("Sisa bulan ini", balance, MaterialTheme.colorScheme.onSurface, defaultCurrency)
+            }
+            // Mata uang lain (Dollar) tampil terpisah — total tidak pernah
+            // dicampur antar mata uang karena tanpa kurs tidak ada angka benar.
+            val otherCurrencies = state.totalBalanceByCurrency.keys.filter { it != state.defaultCurrency }
+            otherCurrencies.forEach { code ->
+                val currency = Currency.fromCode(code)
+                val otherBalance = state.totalBalanceByCurrency[code] ?: 0L
+                val otherIn = state.monthIncomeByCurrency[code] ?: 0L
+                val otherOut = state.monthExpenseByCurrency[code] ?: 0L
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "Saldo ${currency.symbol}: " + formatMoney(otherBalance, currency) +
+                        " · masuk " + formatMoney(otherIn, currency) +
+                        " · keluar " + formatMoney(otherOut, currency),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Button(
+                    onClick = { onQuickAdd(TxnType.INCOME) },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = IncomeGreen)
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = null)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Pemasukan")
+                }
+                Button(
+                    onClick = { onQuickAdd(TxnType.EXPENSE) },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed)
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = null)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Pengeluaran")
+                }
             }
         }
 
@@ -134,7 +201,7 @@ fun HomeScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        formatRupiah(state.totalBalance),
+                        formatMoney(state.totalBalance, defaultCurrency),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -146,16 +213,32 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            walletBalance.wallet.name,
+                            walletBalance.wallet.name + " · " +
+                                WalletType.fromName(walletBalance.wallet.type).label,
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Text(
-                            formatRupiah(walletBalance.balance),
+                            formatMoney(
+                                walletBalance.balance,
+                                Currency.fromCode(walletBalance.wallet.currency)
+                            ),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium
                         )
                     }
                 }
+                // Cash vs e-money (mata uang utama) — ketahuan cash berapa, e-money berapa.
+                val cashDc = state.cashByCurrency[state.defaultCurrency] ?: 0L
+                val emoneyDc = state.emoneyByCurrency[state.defaultCurrency] ?: 0L
+                val bankDc = state.bankByCurrency[state.defaultCurrency] ?: 0L
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "Tunai " + formatMoney(cashDc, defaultCurrency) +
+                        " · E-money " + formatMoney(emoneyDc, defaultCurrency) +
+                        " · Bank " + formatMoney(bankDc, defaultCurrency),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
 
@@ -169,8 +252,8 @@ fun HomeScreen(
             if (budget <= 0) return@mapNotNull null
             val ratio = spent.toFloat() / budget.toFloat()
             when {
-                ratio >= 1f -> "Anggaran $label sudah habis (lebih " + formatRupiah(spent - budget) + ")"
-                ratio >= 0.8f -> "Anggaran $label hampir habis — sisa " + formatRupiah(budget - spent)
+                ratio >= 1f -> "Anggaran $label sudah habis (lebih " + formatMoney(spent - budget, defaultCurrency) + ")"
+                ratio >= 0.8f -> "Anggaran $label hampir habis — sisa " + formatMoney(budget - spent, defaultCurrency)
                 else -> null
             }
         }
@@ -199,7 +282,7 @@ fun HomeScreen(
                                     fontWeight = FontWeight.Medium
                                 )
                                 Text(
-                                    formatRupiah(due.bill.amount) + " · " + statusText,
+                                    formatMoney(due.bill.amount, defaultCurrency) + " · " + statusText,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = if (due.overdue) ExpenseRed else WarningAmber
                                 )
@@ -298,7 +381,7 @@ fun HomeScreen(
                 state.monthlyBars.sumOf { it.amount }
             }
             Text(
-                text = "Total: " + formatRupiah(chartTotal),
+                text = "Total: " + formatMoney(chartTotal, defaultCurrency),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -323,7 +406,7 @@ fun HomeScreen(
                 ) {
                     DonutChart(
                         slices = state.categoryBreakdown.toDonutSlices(),
-                        centerText = formatRupiah(state.monthExpense)
+                        centerText = formatMoney(state.monthExpense, defaultCurrency)
                     )
                     Column(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -352,7 +435,7 @@ fun HomeScreen(
                                 )
                             }
                             Text(
-                                text = formatRupiah(item.amount),
+                                text = formatMoney(item.amount, defaultCurrency),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -380,17 +463,20 @@ fun HomeScreen(
                 BudgetRingItem(
                     label = "Belanja",
                     spent = state.belanjaSpent,
-                    budget = state.budgetBelanja
+                    budget = state.budgetBelanja,
+                    currency = defaultCurrency
                 )
                 BudgetRingItem(
                     label = "Darurat",
                     spent = state.daruratSpent,
-                    budget = state.budgetDarurat
+                    budget = state.budgetDarurat,
+                    currency = defaultCurrency
                 )
                 BudgetRingItem(
                     label = "Tabungan",
                     spent = savedThisMonth,
-                    budget = state.budgetTabungan
+                    budget = state.budgetTabungan,
+                    currency = defaultCurrency
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -485,7 +571,12 @@ fun HomeScreen(
         } else {
             DoitCard {
                 Column {
-                    state.recent.forEach { tx -> TransactionRow(tx = tx) }
+                    state.recent.forEach { tx ->
+                        TransactionRow(
+                            tx = tx,
+                            currency = viewModel.walletCurrency(tx.walletId)
+                        )
+                    }
                 }
             }
         }
@@ -494,11 +585,11 @@ fun HomeScreen(
 }
 
 @Composable
-private fun HeroMini(label: String, amount: Long, color: Color) {
+private fun HeroMini(label: String, amount: Long, color: Color, currency: Currency) {
     Column {
         Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(
-            formatRupiah(amount),
+            formatMoney(amount, currency),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = color
@@ -507,7 +598,7 @@ private fun HeroMini(label: String, amount: Long, color: Color) {
 }
 
 @Composable
-private fun BudgetRingItem(label: String, spent: Long, budget: Long) {
+private fun BudgetRingItem(label: String, spent: Long, budget: Long, currency: Currency) {
     val ratio = if (budget > 0) spent.toFloat() / budget.toFloat() else 0f
     val color = when {
         ratio >= 1f -> ExpenseRed
@@ -521,9 +612,9 @@ private fun BudgetRingItem(label: String, spent: Long, budget: Long) {
         val remaining = budget - spent
         Text(
             text = when {
-                remaining < 0 -> "Lebih " + formatRupiah(-remaining)
-                ratio >= 0.8f && ratio < 1f -> "Hampir habis · sisa " + formatRupiah(remaining)
-                else -> "Sisa " + formatRupiah(remaining)
+                remaining < 0 -> "Lebih " + formatMoney(-remaining, currency)
+                ratio >= 0.8f && ratio < 1f -> "Hampir habis · sisa " + formatMoney(remaining, currency)
+                else -> "Sisa " + formatMoney(remaining, currency)
             },
             style = MaterialTheme.typography.bodySmall,
             color = if (remaining < 0) ExpenseRed else MaterialTheme.colorScheme.onSurfaceVariant

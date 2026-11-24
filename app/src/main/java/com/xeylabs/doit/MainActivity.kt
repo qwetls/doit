@@ -30,10 +30,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.xeylabs.doit.data.TxnType
 import com.xeylabs.doit.ui.HistoryScreen
 import com.xeylabs.doit.ui.HomeScreen
 import com.xeylabs.doit.ui.OnboardingScreen
 import com.xeylabs.doit.ui.PlansScreen
+import com.xeylabs.doit.ui.ProfileScreen
 import com.xeylabs.doit.ui.QuickAddSheet
 import com.xeylabs.doit.ui.ReportsScreen
 import com.xeylabs.doit.ui.WalletsScreen
@@ -76,7 +78,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun MainScaffold(viewModel: MainViewModel, updateViewModel: UpdateViewModel) {
     var selectedTab by remember { mutableStateOf(DoitTab.BERANDA) }
-    var showAdd by remember { mutableStateOf(false) }
+    var addSheetType by remember { mutableStateOf<TxnType?>(null) }
+    var showProfile by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -89,7 +92,7 @@ private fun MainScaffold(viewModel: MainViewModel, updateViewModel: UpdateViewMo
                 DoitTab.entries.forEach { tab ->
                     NavigationBarItem(
                         selected = selectedTab == tab,
-                        onClick = { selectedTab = tab },
+                        onClick = { selectedTab = tab; showProfile = false },
                         icon = { Icon(tab.icon, contentDescription = tab.label) },
                         label = { Text(tab.label) }
                     )
@@ -97,28 +100,44 @@ private fun MainScaffold(viewModel: MainViewModel, updateViewModel: UpdateViewMo
             }
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAdd = true }) {
+            FloatingActionButton(onClick = { addSheetType = TxnType.EXPENSE }) {
                 Icon(Icons.Filled.Add, contentDescription = "Catat baru")
             }
         }
     ) { padding ->
         Box(modifier = Modifier.padding(padding)) {
-            when (selectedTab) {
-                DoitTab.BERANDA -> HomeScreen(
+            if (showProfile) {
+                ProfileScreen(
                     viewModel = viewModel,
                     updateViewModel = updateViewModel,
-                    onNavigate = { selectedTab = it }
+                    onBack = { showProfile = false },
+                    onNavigate = { tab ->
+                        showProfile = false
+                        selectedTab = tab
+                    }
                 )
-                DoitTab.RIWAYAT -> HistoryScreen(viewModel)
-                DoitTab.DOMPET -> WalletsScreen(viewModel)
-                DoitTab.RENCANA -> PlansScreen(viewModel)
-                DoitTab.LAPORAN -> ReportsScreen(viewModel)
+            } else {
+                when (selectedTab) {
+                    DoitTab.BERANDA -> HomeScreen(
+                        viewModel = viewModel,
+                        updateViewModel = updateViewModel,
+                        onNavigate = { selectedTab = it },
+                        onOpenProfile = { showProfile = true },
+                        onQuickAdd = { type -> addSheetType = type }
+                    )
+                    DoitTab.RIWAYAT -> HistoryScreen(viewModel)
+                    DoitTab.DOMPET -> WalletsScreen(viewModel)
+                    DoitTab.RENCANA -> PlansScreen(viewModel)
+                    DoitTab.LAPORAN -> ReportsScreen(viewModel)
+                }
             }
         }
-        if (showAdd) {
+        val sheetType = addSheetType
+        if (sheetType != null) {
             QuickAddSheet(
                 viewModel = viewModel,
-                onDismiss = { showAdd = false }
+                onDismiss = { addSheetType = null },
+                initialType = sheetType
             )
         }
     }

@@ -26,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.xeylabs.doit.data.Category
+import com.xeylabs.doit.data.Currency
 import com.xeylabs.doit.data.Transaction
 import com.xeylabs.doit.data.TxnType
 import com.xeylabs.doit.ui.theme.ExpenseRed
@@ -36,6 +37,7 @@ fun TransactionRow(
     tx: Transaction,
     onEdit: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
+    currency: Currency = Currency.IDR,
     modifier: Modifier = Modifier
 ) {
     val isIncome = tx.type == TxnType.INCOME.name
@@ -70,7 +72,7 @@ fun TransactionRow(
             )
         }
         Text(
-            text = formatSignedRupiah(tx.amount, isIncome),
+            text = formatSignedMoney(tx.amount, isIncome, currency),
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Bold,
             color = if (isIncome) IncomeGreen else ExpenseRed

@@ -43,6 +43,7 @@ fun EditTransactionDialog(
     onDismiss: () -> Unit
 ) {
     val type = TxnType.valueOf(tx.type)
+    val txCurrency = viewModel.walletCurrency(tx.walletId)
     var amountText by remember { mutableStateOf(tx.amount.toString()) }
     var category by remember { mutableStateOf(Category.fromName(tx.category)) }
     var date by remember { mutableStateOf(LocalDate.ofEpochDay(tx.dateEpochDay)) }
@@ -60,7 +61,7 @@ fun EditTransactionDialog(
                 OutlinedTextField(
                     value = amountText,
                     onValueChange = { amountText = it.filter { ch -> ch.isDigit() } },
-                    label = { Text("Jumlah (Rp)") },
+                    label = { Text("Jumlah (" + txCurrency.symbol + ")") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()

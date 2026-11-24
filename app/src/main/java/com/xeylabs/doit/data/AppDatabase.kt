@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Debt::class,
         Bill::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -105,6 +105,19 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v3 (rilis 1.2.0/1.3.0) -> v4: mata uang dompet, jenis + penyedia utang,
+        // jumlah diterima transfer. Semua kolom nullable tanpa DEFAULT — cocok
+        // persis dengan skema yang Room hasilkan dari entity, jadi validasi
+        // migrasi lolos dan semua data lama dipertahankan.
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE wallets ADD COLUMN currency TEXT")
+                db.execSQL("ALTER TABLE debts ADD COLUMN kind TEXT")
+                db.execSQL("ALTER TABLE debts ADD COLUMN provider TEXT")
+                db.execSQL("ALTER TABLE transactions ADD COLUMN transferReceivedAmount INTEGER")
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -114,7 +127,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "doit.db"
-                ).addMigrations(MIGRATION_1_3, MIGRATION_2_3).build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_1_3, MIGRATION_2_3, MIGRATION_3_4).build().also { INSTANCE = it }
             }
         }
     }

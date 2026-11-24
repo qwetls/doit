@@ -78,24 +78,23 @@ jobs:
           VERSION_NAME: ${{ steps.apk.outputs.version }}
         run: |
           cat > RELEASE_NOTES.md <<'EOF'
-          ## do.it v1.3.0 — Restruktur: 5 tab dengan satu tugas jelas
+          ## do.it v1.4.0 — Desain baru ala app bank + Rp & Dollar
 
-          Tab "Keuangan" yang menumpuk semua fitur dibongkar — tiap fitur kini hidup di tepat satu tempat:
-          - **Beranda** (ringkasan saja):
-            - Total saldo semua dompet, masuk/keluar bulan ini, grafik 7 hari / 6 bulan, donut per kategori, cincin anggaran, kartu target tabungan.
-            - Kartu "Perhatian" baru: tagihan jatuh tempo ≤7 hari / terlambat + anggaran yang hampir atau sudah habis — ketuk untuk lompat ke tab pemiliknya (Rencana). Pemasukan per sumber tidak lagi di Beranda, hanya di Laporan.
-          - **Riwayat**:
-            - Semua transaksi + cari + filter bulan/kategori, ditambah filter dompet baru; ubah/hapus per baris tetap ada.
-          - **Dompet** (baru):
-            - Daftar dompet + saldo, tambah/ubah/hapus dompet, transfer antar dompet. Pindah dari tab Keuangan lama.
-          - **Rencana** (baru):
-            - Perencanaan & kewajiban dalam satu tab, tiap bagian punya judul sendiri: Anggaran, Target tabungan, Transaksi berulang, Utang & piutang, Tagihan & pengingat.
-          - **Laporan** (baru):
-            - Hanya laporan: arus kas (masuk/keluar/bersih), grafik 6 bulan, per kategori (donut), per sumber pemasukan, per dompet, ekspor CSV.
-          - **Tanpa perubahan data**:
-            - Skema database tetap v3, tanpa migrasi — semua data, dompet, rutin, utang, tagihan, dan target tabungan lama dipertahankan.
-          - **Tetap ringan dan lokal**:
-            - Semua data di HP (Room/SQLite); tanpa server, tanpa login, tanpa biaya, tanpa library baru yang berat.
+          - **Beranda ala app bank:**
+            - Avatar profil paling kiri (ketuk → Profil & Pengaturan), sapaan "Halo, Adrien", total saldo besar dengan animasi, baris Masuk / Keluar / Sisa bulan ini, dan dua tombol besar **+ Pemasukan** (hijau) / **+ Pengeluaran** (merah) yang langsung membuka sheet dengan jenis yang benar.
+            - Pemasukan universal — sumber tetap Gaji pokok, Lembur, Sampingan, Lain-lain, dan catatan opsional ada di pemasukan maupun pengeluaran.
+          - **Dompet multi + 2 mata uang saja (Rp & Dollar):**
+            - Tiap dompet punya mata uang (Rp atau $); dompet lama default Rp. Ringkasan per mata uang: Tunai · E-money · Bank tidak dicampur antar mata uang.
+            - Transfer antar dompet menampilkan arah eksplisit ("Tunai → GoPay"); transfer Rp ↔ $ tanpa kurs otomatis — jumlah yang diterima diisi manual.
+          - **Paylater & Utang Piutang (bagian khusus di Rencana):**
+            - Utang/piutang punya jenis: Utang / Piutang / Paylater, plus nama penyedia untuk Paylater (mis. GoPay Later, SPayLater). Paylater otomatis berarti kamu meminjam.
+          - **Profil & Pengaturan (baru, dari avatar Beranda):**
+            - Nama tampilan, mata uang utama (Rp/$), dompet utama, pemasukan bulanan, jalan pintas ke Rencana/Laporan, versi aplikasi + cek update (self-update yang sama). Tanpa login, tanpa foto — avatar inisial.
+          - **Migrasi aman ke database v4 (migrasi nyata v3→v4):**
+            - Dompet lama dapat kolom mata uang (default IDR), utang lama dapat jenis + penyedia — semua data dipertahankan, tanpa penghapusan.
+          - **Batas yang disengaja:**
+            - Anggaran, target tabungan, tagihan, dan utang tetap dalam Rp. Kalau mata uang utama diganti ke Dollar, ringkasan memakai $, tetapi anggaran yang sudah diset tetap dibandingkan dalam Rp — set ulang anggaran setelah pindah mata uang kalau perlu.
+            - Jumlah Dollar ditampilkan tanpa sen (angka bulat).
 
           Published signed release and debug APKs.
           EOF
@@ -105,7 +104,7 @@ jobs:
             "${{ steps.apk.outputs.release_path }}.sha256" \
             "${{ steps.apk.outputs.debug_path }}" \
             "${{ steps.apk.outputs.debug_path }}.sha256" \
-            --title "do.it $RELEASE_TAG (Restruktur — Beranda, Riwayat, Dompet, Rencana & Laporan)" \
+            --title "do.it $RELEASE_TAG (Desain bank — Beranda baru, Rp & Dollar, Paylater & Profil)" \
             --notes-file RELEASE_NOTES.md \
             --latest
 

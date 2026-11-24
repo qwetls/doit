@@ -19,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.xeylabs.doit.data.Currency
 import com.xeylabs.doit.ui.theme.ExpenseRed
 import com.xeylabs.doit.ui.theme.IncomeGreen
 import com.xeylabs.doit.viewmodel.MainViewModel
@@ -49,13 +50,27 @@ fun ReportsScreen(viewModel: MainViewModel) {
         DoitCard {
             SectionTitle("Arus kas " + formatMonth(month))
             Spacer(modifier = Modifier.height(12.dp))
-            ReportRow("Pemasukan", report.monthIncome, IncomeGreen)
-            ReportRow("Pengeluaran", report.monthExpense, ExpenseRed)
+            ReportRow("Pemasukan", report.monthIncome, IncomeGreen, Currency.fromCode(report.defaultCurrency))
+            ReportRow("Pengeluaran", report.monthExpense, ExpenseRed, Currency.fromCode(report.defaultCurrency))
             ReportRow(
                 "Bersih",
                 report.monthNet,
-                if (report.monthNet >= 0) IncomeGreen else ExpenseRed
+                if (report.monthNet >= 0) IncomeGreen else ExpenseRed,
+                Currency.fromCode(report.defaultCurrency)
             )
+            // Mata uang lain tampil terpisah — total tidak dicampur tanpa kurs.
+            val otherCodes = (report.monthIncomeByCurrency.keys + report.monthExpenseByCurrency.keys)
+                .filter { it != report.defaultCurrency }
+            otherCodes.forEach { code ->
+                val currency = Currency.fromCode(code)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "${currency.label}: masuk " + formatMoney(report.monthIncomeByCurrency[code] ?: 0L, currency) +
+                        " · keluar " + formatMoney(report.monthExpenseByCurrency[code] ?: 0L, currency),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
 
         // ---------- Grafik pengeluaran 6 bulan ----------
@@ -65,7 +80,7 @@ fun ReportsScreen(viewModel: MainViewModel) {
             BarChart(bars = state.monthlyBars.toMonthBars())
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Total 6 bulan: " + formatRupiah(state.monthlyBars.sumOf { it.amount }),
+                text = "Total 6 bulan: " + formatMoney(state.monthlyBars.sumOf { it.amount }, Currency.fromCode(report.defaultCurrency)),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -84,11 +99,11 @@ fun ReportsScreen(viewModel: MainViewModel) {
             } else {
                 DonutChart(
                     slices = report.perCategory.toDonutSlices(),
-                    centerText = formatRupiah(report.monthExpense)
+                    centerText = formatMoney(report.monthExpense, Currency.fromCode(report.defaultCurrency))
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 report.perCategory.forEach { item ->
-                    ReportRow(item.category.label, item.amount, MaterialTheme.colorScheme.onSurface)
+                    ReportRow(item.category.label, item.amount, MaterialTheme.colorScheme.onSurface, Currency.fromCode(report.defaultCurrency))
                 }
             }
         }
@@ -105,7 +120,7 @@ fun ReportsScreen(viewModel: MainViewModel) {
                 )
             } else {
                 report.perSource.forEach { source ->
-                    ReportRow(source.category.label, source.amount, IncomeGreen)
+                    ReportRow(source.category.label, source.amount, IncomeGreen, Currency.fromCode(report.defaultCurrency))
                 }
             }
         }
@@ -125,7 +140,8 @@ fun ReportsScreen(viewModel: MainViewModel) {
                     ReportRow(
                         walletMonth.wallet.name + " (masuk − keluar)",
                         walletMonth.income - walletMonth.expense,
-                        MaterialTheme.colorScheme.onSurface
+                        MaterialTheme.colorScheme.onSurface,
+                        Currency.fromCode(walletMonth.wallet.currency)
                     )
                 }
             }
@@ -153,14 +169,19 @@ fun ReportsScreen(viewModel: MainViewModel) {
 }
 
 @Composable
-private fun ReportRow(label: String, amount: Long, color: androidx.compose.ui.graphics.Color) {
+private fun ReportRow(
+    label: String,
+    amount: Long,
+    color: androidx.compose.ui.graphics.Color,
+    currency: Currency = Currency.IDR
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(label, style = MaterialTheme.typography.bodyMedium)
         Text(
-            formatRupiah(amount),
+            formatMoney(amount, currency),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
             color = color

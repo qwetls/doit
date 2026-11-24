@@ -36,5 +36,8 @@ data class Transaction(
     // ALTER TABLE tanpa DEFAULT tetap lolos validasi skema Room.
     val walletId: Long? = null,
     // Terisi hanya untuk TRANSFER: dompet tujuan.
-    val transferToWalletId: Long? = null
+    val transferToWalletId: Long? = null,
+    // Terisi hanya untuk TRANSFER beda mata uang: jumlah yang diterima dompet
+    // tujuan (diisi manual pengguna, tanpa kurs otomatis). Null = sama dengan amount.
+    val transferReceivedAmount: Long? = null
 )

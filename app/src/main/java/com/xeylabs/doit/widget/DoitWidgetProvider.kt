@@ -10,7 +10,9 @@ import android.widget.RemoteViews
 import com.xeylabs.doit.MainActivity
 import com.xeylabs.doit.R
 import com.xeylabs.doit.data.AppDatabase
+import com.xeylabs.doit.data.Currency
 import com.xeylabs.doit.data.TxnType
+import com.xeylabs.doit.ui.formatMoney
 import com.xeylabs.doit.ui.formatRupiah
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -45,12 +47,19 @@ class DoitWidgetProvider : AppWidgetProvider() {
                 val db = AppDatabase.get(context)
                 val txs = db.transactionDao().getAllOnce()
                 val goals = db.savingsGoalDao().getAllOnce()
+                val wallets = db.walletDao().getAllOnce()
                 val prefs = context.getSharedPreferences("doit_settings", Context.MODE_PRIVATE)
                 val budgetBelanja = prefs.getLong("budget_belanja", 200_000L)
                 val budgetDarurat = prefs.getLong("budget_darurat", 100_000L)
+                // Widget memakai mata uang utama — Rp dan Dollar tidak dicampur.
+                val defaultCurrency = Currency.fromCode(prefs.getString("default_currency", "IDR"))
+                val defaultWalletId = wallets.firstOrNull()?.id
+                fun txCurrency(tx: com.xeylabs.doit.data.Transaction): String =
+                    wallets.firstOrNull { it.id == (tx.walletId ?: defaultWalletId) }?.currency ?: "IDR"
+                val dcTxs = txs.filter { txCurrency(it) == defaultCurrency.code }
 
                 val month = YearMonth.now()
-                val inMonth = txs.filter {
+                val inMonth = dcTxs.filter {
                     YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == month
                 }
                 val monthIncome = inMonth.filter { it.type == TxnType.INCOME.name }.sumOf { it.amount }
@@ -77,10 +86,10 @@ class DoitWidgetProvider : AppWidgetProvider() {
                 } else 0
 
                 val views = RemoteViews(context.packageName, R.layout.widget_doit)
-                views.setTextViewText(R.id.widget_remaining, formatRupiah(remaining))
+                views.setTextViewText(R.id.widget_remaining, formatMoney(remaining, defaultCurrency))
                 views.setTextViewText(
                     R.id.widget_budget,
-                    "Sisa anggaran: " + formatRupiah(budgetRemaining)
+                    "Sisa anggaran: " + formatMoney(budgetRemaining, defaultCurrency)
                 )
                 views.setTextViewText(R.id.widget_savings, savingsText)
                 views.setProgressBar(R.id.widget_savings_bar, 100, savingsPct, false)

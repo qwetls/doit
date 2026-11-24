@@ -35,9 +35,11 @@ import com.xeylabs.doit.data.Bill
 import com.xeylabs.doit.data.Category
 import com.xeylabs.doit.data.Debt
 import com.xeylabs.doit.data.DebtDirection
+import com.xeylabs.doit.data.DebtKind
 import com.xeylabs.doit.data.RecurringFrequency
 import com.xeylabs.doit.data.RecurringTransaction
 import com.xeylabs.doit.data.TxnType
+import com.xeylabs.doit.data.effectiveKind
 import com.xeylabs.doit.ui.theme.ExpenseRed
 import com.xeylabs.doit.ui.theme.IncomeGreen
 import com.xeylabs.doit.viewmodel.MainViewModel
@@ -66,7 +68,7 @@ fun PlansScreen(viewModel: MainViewModel) {
         SectionTitle("Transaksi berulang")
         RecurringSection(viewModel)
 
-        SectionTitle("Utang & piutang")
+        SectionTitle("Paylater & Utang Piutang")
         DebtsSection(viewModel)
 
         SectionTitle("Tagihan & pengingat")
@@ -227,15 +229,15 @@ private fun DebtsSection(viewModel: MainViewModel) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            SectionTitle("Utang & piutang")
+            SectionTitle("Paylater & Utang Piutang")
             IconButton(onClick = { showAddDebt = true }) {
-                Icon(Icons.Filled.Add, contentDescription = "Tambah utang/piutang")
+                Icon(Icons.Filled.Add, contentDescription = "Tambah paylater/utang/piutang")
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
         if (debts.isEmpty()) {
             Text(
-                "Belum ada utang atau piutang.",
+                "Belum ada paylater, utang, atau piutang.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -243,6 +245,7 @@ private fun DebtsSection(viewModel: MainViewModel) {
             debts.forEach { debt ->
                 val remaining = (debt.amount - debt.paid).coerceAtLeast(0)
                 val direction = DebtDirection.fromName(debt.direction)
+                val kind = debt.effectiveKind()
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -255,7 +258,10 @@ private fun DebtsSection(viewModel: MainViewModel) {
                             fontWeight = FontWeight.Medium
                         )
                         Text(
-                            direction.label + " · " + formatDate(debt.dateEpochDay),
+                            kind.label +
+                                (if (!debt.provider.isNullOrBlank()) " · " + debt.provider else "") +
+                                (if (kind == DebtKind.PAYLATER) "" else " · " + direction.label) +
+                                " · " + formatDate(debt.dateEpochDay),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -289,8 +295,8 @@ private fun DebtsSection(viewModel: MainViewModel) {
     if (showAddDebt) {
         DebtEditDialog(
             onDismiss = { showAddDebt = false },
-            onSave = { personName, amount, direction, date ->
-                viewModel.addDebt(personName, amount, direction, date)
+            onSave = { personName, amount, direction, kind, provider, date ->
+                viewModel.addDebt(personName, amount, direction, kind, provider, date)
                 showAddDebt = false
             }
         )

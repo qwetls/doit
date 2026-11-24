@@ -8,8 +8,10 @@ import androidx.lifecycle.viewModelScope
 import com.xeylabs.doit.data.AppDatabase
 import com.xeylabs.doit.data.Bill
 import com.xeylabs.doit.data.Category
+import com.xeylabs.doit.data.Currency
 import com.xeylabs.doit.data.Debt
 import com.xeylabs.doit.data.DebtDirection
+import com.xeylabs.doit.data.DebtKind
 import com.xeylabs.doit.data.RecurringFrequency
 import com.xeylabs.doit.data.RecurringTransaction
 import com.xeylabs.doit.data.SavingsGoal
@@ -18,6 +20,7 @@ import com.xeylabs.doit.data.Transaction
 import com.xeylabs.doit.data.TxnType
 import com.xeylabs.doit.data.Wallet
 import com.xeylabs.doit.data.WalletType
+import com.xeylabs.doit.data.walletCurrency
 import com.xeylabs.doit.widget.DoitWidgetProvider
 import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -48,6 +51,16 @@ data class Insight(val text: String, val kind: InsightKind)
 data class HomeUiState(
     val monthIncome: Long = 0,
     val monthExpense: Long = 0,
+    // Semua angka bulan ini di atas adalah mata uang utama saja. Peta di bawah
+    // menampung mata uang lain (khusus Rp + Dollar) — total tidak pernah
+    // dicampur antar mata uang karena tanpa kurs tidak ada angka yang benar.
+    val defaultCurrency: String = "IDR",
+    val monthIncomeByCurrency: Map<String, Long> = emptyMap(),
+    val monthExpenseByCurrency: Map<String, Long> = emptyMap(),
+    val totalBalanceByCurrency: Map<String, Long> = emptyMap(),
+    val cashByCurrency: Map<String, Long> = emptyMap(),
+    val emoneyByCurrency: Map<String, Long> = emptyMap(),
+    val bankByCurrency: Map<String, Long> = emptyMap(),
     val belanjaSpent: Long = 0,
     val daruratSpent: Long = 0,
     val makanSpent: Long = 0,
@@ -78,6 +91,9 @@ data class ReportUiState(
     val monthIncome: Long = 0,
     val monthExpense: Long = 0,
     val monthNet: Long = 0,
+    val defaultCurrency: String = "IDR",
+    val monthIncomeByCurrency: Map<String, Long> = emptyMap(),
+    val monthExpenseByCurrency: Map<String, Long> = emptyMap(),
     val perCategory: List<CategorySpend> = emptyList(),
     val perWallet: List<WalletMonthSpend> = emptyList(),
     val perSource: List<IncomeSourceSpend> = emptyList()
@@ -110,6 +126,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val lastWalletId: StateFlow<Long> = settings.lastWalletId
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
+    val displayName: StateFlow<String> = settings.displayName
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "Adrien")
+
+    val defaultCurrency: StateFlow<String> = settings.defaultCurrency
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "IDR")
+
     private val allTransactions: StateFlow<List<Transaction>> = dao.getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -139,31 +161,47 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /** Saldo tiap dompet = saldo awal + pemasukan − pengeluaran − transfer keluar + transfer masuk. */
+    /** Saldo tiap dompet = saldo awal + pemasukan − pengeluaran − transfer keluar + transfer masuk (jumlah diterima untuk beda mata uang). */
     val walletBalances: StateFlow<List<WalletBalance>> = combine(
         wallets, allTransactions
     ) { walletList, txs ->
         computeWalletBalances(walletList, txs)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /** Pemasukan per sumber (Gaji pokok / Lembur / Sampingan / Lain-lain) di bulan terpilih. */
+    /** Pemasukan per sumber (Gaji pokok / Lembur / Sampingan / Lain-lain) di bulan terpilih, mata uang utama saja. */
     val incomeBySource: StateFlow<List<IncomeSourceSpend>> = combine(
-        allTransactions, selectedMonth
-    ) { txs, month ->
-        computeIncomeBySource(txs, month)
+        allTransactions, selectedMonth, settings.defaultCurrency, wallets
+    ) { txs, month, currency, walletList ->
+        computeIncomeBySource(txs, month, currency, walletList)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val reportState: StateFlow<ReportUiState> = combine(
-        allTransactions, selectedMonth, wallets
-    ) { txs, month, walletList ->
-        val inMonth = txs.filter { YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == month }
+        allTransactions, selectedMonth, wallets, settings.defaultCurrency
+    ) { txs, month, walletList, currency ->
+        val defaultId = walletList.firstOrNull()?.id
+        fun txCurrency(tx: Transaction): String =
+            walletList.firstOrNull { it.id == (tx.walletId ?: defaultId) }?.currency ?: "IDR"
+        // Arus kas & kategori dihitung dalam mata uang utama saja — mencampur
+        // Rp dan Dollar tanpa kurs menghasilkan angka yang salah.
+        val dcTxs = txs.filter { txCurrency(it) == currency }
+        val inMonth = dcTxs.filter { YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == month }
         val income = inMonth.filter { it.type == TxnType.INCOME.name }.sumOf { it.amount }
         val expense = inMonth.filter { it.type == TxnType.EXPENSE.name }.sumOf { it.amount }
-        val defaultId = walletList.firstOrNull()?.id
+        val incomeByCurrency = txs
+            .filter { it.type == TxnType.INCOME.name && YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == month }
+            .groupBy { txCurrency(it) }
+            .mapValues { (_, list) -> list.sumOf { it.amount } }
+        val expenseByCurrency = txs
+            .filter { it.type == TxnType.EXPENSE.name && YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == month }
+            .groupBy { txCurrency(it) }
+            .mapValues { (_, list) -> list.sumOf { it.amount } }
         ReportUiState(
             monthIncome = income,
             monthExpense = expense,
             monthNet = income - expense,
+            defaultCurrency = currency,
+            monthIncomeByCurrency = incomeByCurrency,
+            monthExpenseByCurrency = expenseByCurrency,
             perCategory = Category.forType(TxnType.EXPENSE)
                 .map { category ->
                     CategorySpend(
@@ -174,20 +212,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 .filter { it.amount > 0 }
                 .sortedByDescending { it.amount },
             perWallet = walletList.map { wallet ->
-                val walletTxs = inMonth.filter { (it.walletId ?: defaultId) == wallet.id }
-                val transferIn = inMonth
+                val walletTxs = txs.filter { (it.walletId ?: defaultId) == wallet.id }
+                val walletInMonth = walletTxs.filter { YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == month }
+                val transferIn = walletInMonth
                     .filter { it.type == TxnType.TRANSFER.name && it.transferToWalletId == wallet.id }
-                    .sumOf { it.amount }
-                val transferOut = inMonth
+                    .sumOf { it.transferReceivedAmount ?: it.amount }
+                val transferOut = walletInMonth
                     .filter { it.type == TxnType.TRANSFER.name && (it.walletId ?: defaultId) == wallet.id }
                     .sumOf { it.amount }
                 WalletMonthSpend(
                     wallet = wallet,
-                    income = walletTxs.filter { it.type == TxnType.INCOME.name }.sumOf { it.amount } + transferIn,
-                    expense = walletTxs.filter { it.type == TxnType.EXPENSE.name }.sumOf { it.amount } + transferOut
+                    income = walletInMonth.filter { it.type == TxnType.INCOME.name }.sumOf { it.amount } + transferIn,
+                    expense = walletInMonth.filter { it.type == TxnType.EXPENSE.name }.sumOf { it.amount } + transferOut
                 )
             },
-            perSource = computeIncomeBySource(txs, month)
+            perSource = computeIncomeBySource(txs, month, currency, walletList)
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ReportUiState())
 
@@ -220,6 +259,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val budgetTabungan: Long
     )
 
+    // Pemasukan bulanan + mata uang utama digabung jadi satu flow supaya
+    // combine uiState tetap 5 flow (batas aman yang sama seperti sebelumnya).
+    private val settingsPair: StateFlow<Pair<Long, String>> = combine(
+        settings.monthlyIncome, settings.defaultCurrency
+    ) { income, currency -> income to currency }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1_000_000L to "IDR")
+
     val uiState: StateFlow<HomeUiState> = combine(
         combine(
             allTransactions,
@@ -231,11 +277,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             HomeInputs(txs, month, bBelanja, bDarurat, bTabungan)
         },
         goals,
-        settings.monthlyIncome,
+        settingsPair,
         wallets,
         bills
-    ) { inputs, goals, monthlyIncome, walletList, billList ->
-        buildHomeState(inputs, goals, monthlyIncome, walletList, billList)
+    ) { inputs, goals, pair, walletList, billList ->
+        buildHomeState(inputs, goals, pair.first, pair.second, walletList, billList)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeUiState())
 
     private fun computeWalletBalances(
@@ -252,7 +298,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     TxnType.EXPENSE.name -> if (effectiveWallet == wallet.id) balance -= tx.amount
                     TxnType.TRANSFER.name -> {
                         if (effectiveWallet == wallet.id) balance -= tx.amount
-                        if (tx.transferToWalletId == wallet.id) balance += tx.amount
+                        if (tx.transferToWalletId == wallet.id) {
+                            balance += tx.transferReceivedAmount ?: tx.amount
+                        }
                     }
                 }
             }
@@ -262,11 +310,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun computeIncomeBySource(
         txs: List<Transaction>,
-        month: YearMonth
+        month: YearMonth,
+        currency: String,
+        walletList: List<Wallet>
     ): List<IncomeSourceSpend> {
+        val defaultId = walletList.firstOrNull()?.id
         return txs.filter {
             it.type == TxnType.INCOME.name &&
-                YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == month
+                YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == month &&
+                (walletList.firstOrNull { w -> w.id == (it.walletId ?: defaultId) }?.currency ?: "IDR") == currency
         }
             .groupBy { Category.fromName(it.category) }
             .map { (category, list) -> IncomeSourceSpend(category, list.sumOf { it.amount }) }
@@ -291,15 +343,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         inputs: HomeInputs,
         goals: List<SavingsGoal>,
         monthlyIncome: Long,
+        defaultCurrency: String,
         walletList: List<Wallet>,
         billList: List<Bill>
     ): HomeUiState {
         val txs = inputs.txs
         val month = inputs.month
         val today = LocalDate.now()
-        val inMonth = txs.filter { YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == month }
+        val defaultWalletId = walletList.firstOrNull()?.id
+        fun txCurrency(tx: Transaction): String =
+            walletList.firstOrNull { it.id == (tx.walletId ?: defaultWalletId) }?.currency ?: "IDR"
+        // Grafik, insight, dan angka bulan ini dihitung dalam mata uang utama
+        // saja — mencampur Rp dan Dollar tanpa kurs menghasilkan angka salah.
+        val dcTxs = txs.filter { txCurrency(it) == defaultCurrency }
+        val inMonth = dcTxs.filter { YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == month }
         val prevMonth = month.minusMonths(1)
-        val inPrevMonth = txs.filter { YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == prevMonth }
+        val inPrevMonth = dcTxs.filter { YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == prevMonth }
 
         fun expenseOf(list: List<Transaction>) =
             list.filter { it.type == TxnType.EXPENSE.name }.sumOf { it.amount }
@@ -313,7 +372,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val prevMonthExpense = expenseOf(inPrevMonth)
         val prevMonthIncome = incomeOf(inPrevMonth)
 
-        val monthlyNets = txs.groupBy { YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) }
+        val monthlyNets = dcTxs.groupBy { YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) }
             .values.map { monthTxs -> incomeOf(monthTxs) - expenseOf(monthTxs) }
         val avgMonthlyNet = if (monthlyNets.isEmpty()) 0 else monthlyNets.sum() / monthlyNets.size
 
@@ -335,7 +394,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
         val last7Days = (6 downTo 0).map { back ->
             val date = today.minusDays(back.toLong())
-            val amount = txs.filter {
+            val amount = dcTxs.filter {
                 it.type == TxnType.EXPENSE.name && LocalDate.ofEpochDay(it.dateEpochDay) == date
             }.sumOf { it.amount }
             DaySpend(date.format(dayAbbrev), amount)
@@ -343,7 +402,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
         val monthlyBars = (5 downTo 0).map { back ->
             val ym = YearMonth.now().minusMonths(back.toLong())
-            val amount = txs.filter {
+            val amount = dcTxs.filter {
                 it.type == TxnType.EXPENSE.name &&
                     YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == ym
             }.sumOf { it.amount }
@@ -356,7 +415,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             .sortedByDescending { it.amount }
 
         val insights = buildInsights(
-            txs = txs,
+            txs = dcTxs,
             month = month,
             monthIncome = monthIncome,
             monthExpense = monthExpense,
@@ -371,10 +430,31 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         )
 
         val walletBalanceList = computeWalletBalances(walletList, txs)
+        val balanceByCurrency = walletBalanceList
+            .groupBy { it.wallet.currency ?: "IDR" }
+            .mapValues { (_, list) -> list.sumOf { it.balance } }
+        fun typeBalanceByCurrency(type: WalletType): Map<String, Long> =
+            walletBalanceList
+                .filter { WalletType.fromName(it.wallet.type) == type }
+                .groupBy { it.wallet.currency ?: "IDR" }
+                .mapValues { (_, list) -> list.sumOf { it.balance } }
 
         return HomeUiState(
             monthIncome = monthIncome,
             monthExpense = monthExpense,
+            defaultCurrency = defaultCurrency,
+            monthIncomeByCurrency = txs
+                .filter { it.type == TxnType.INCOME.name && YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == month }
+                .groupBy { txCurrency(it) }
+                .mapValues { (_, list) -> list.sumOf { it.amount } },
+            monthExpenseByCurrency = txs
+                .filter { it.type == TxnType.EXPENSE.name && YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == month }
+                .groupBy { txCurrency(it) }
+                .mapValues { (_, list) -> list.sumOf { it.amount } },
+            totalBalanceByCurrency = balanceByCurrency,
+            cashByCurrency = typeBalanceByCurrency(WalletType.TUNAI),
+            emoneyByCurrency = typeBalanceByCurrency(WalletType.EWALLET),
+            bankByCurrency = typeBalanceByCurrency(WalletType.BANK),
             belanjaSpent = categorySpent(inMonth, Category.BELANJA),
             daruratSpent = categorySpent(inMonth, Category.DARURAT),
             makanSpent = categorySpent(inMonth, Category.MAKAN),
@@ -396,8 +476,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             insights = insights,
             recent = txs.take(5),
             wallets = walletBalanceList,
-            totalBalance = walletBalanceList.sumOf { it.balance },
-            incomeBySource = computeIncomeBySource(txs, month),
+            totalBalance = balanceByCurrency[defaultCurrency] ?: 0,
+            incomeBySource = computeIncomeBySource(txs, month, defaultCurrency, walletList),
             dueBills = computeDueBills(billList)
         )
     }
@@ -572,6 +652,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             ?: "Dompet"
     }
 
+    /** Mata uang dompet sebuah transaksi (null = dompet pertama). */
+    fun walletCurrency(id: Long?): Currency {
+        val wallet = wallets.value.firstOrNull { it.id == id } ?: wallets.value.firstOrNull()
+        return walletCurrency(wallet)
+    }
+
     fun addTransaction(
         type: TxnType,
         category: Category,
@@ -598,9 +684,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Transfer antar dompet: BUKAN pemasukan/pengeluaran, satu baris tipe TRANSFER. */
-    fun addTransfer(fromWalletId: Long, toWalletId: Long, amount: Long, date: LocalDate, note: String) {
+    /** Transfer antar dompet: BUKAN pemasukan/pengeluaran, satu baris tipe TRANSFER.
+     * Beda mata uang: receivedAmount = jumlah yang diterima dompet tujuan (diisi
+     * manual pengguna, tanpa kurs otomatis); null = sama dengan amount. */
+    fun addTransfer(
+        fromWalletId: Long,
+        toWalletId: Long,
+        amount: Long,
+        receivedAmount: Long? = null,
+        date: LocalDate = LocalDate.now(),
+        note: String = ""
+    ) {
         if (fromWalletId == toWalletId || amount <= 0) return
+        if (receivedAmount != null && receivedAmount <= 0) return
         viewModelScope.launch {
             val walletList = walletDao.getAllOnce()
             val fromName = walletList.firstOrNull { it.id == fromWalletId }?.name ?: ""
@@ -615,7 +711,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     dateEpochDay = date.toEpochDay(),
                     note = fullNote,
                     walletId = fromWalletId,
-                    transferToWalletId = toWalletId
+                    transferToWalletId = toWalletId,
+                    transferReceivedAmount = receivedAmount
                 )
             )
             settings.setLastWalletId(fromWalletId)
@@ -639,9 +736,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------- Dompet ----------
 
-    fun addWallet(name: String, type: WalletType, initialBalance: Long) {
+    fun addWallet(name: String, type: WalletType, currency: Currency, initialBalance: Long) {
         viewModelScope.launch {
-            walletDao.insert(Wallet(name = name.trim(), type = type.name, initialBalance = initialBalance))
+            walletDao.insert(
+                Wallet(
+                    name = name.trim(),
+                    type = type.name,
+                    initialBalance = initialBalance,
+                    currency = currency.code
+                )
+            )
         }
     }
 
@@ -675,9 +779,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { recurringDao.delete(recurring) }
     }
 
-    // ---------- Utang & piutang ----------
+    // ---------- Utang, piutang & paylater ----------
 
-    fun addDebt(personName: String, amount: Long, direction: DebtDirection, date: LocalDate) {
+    fun addDebt(
+        personName: String,
+        amount: Long,
+        direction: DebtDirection,
+        kind: DebtKind,
+        provider: String,
+        date: LocalDate
+    ) {
         viewModelScope.launch {
             debtDao.insert(
                 Debt(
@@ -686,7 +797,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     direction = direction.name,
                     paid = 0,
                     isSettled = false,
-                    dateEpochDay = date.toEpochDay()
+                    dateEpochDay = date.toEpochDay(),
+                    kind = kind.name,
+                    provider = provider.trim().ifBlank { null }
                 )
             )
         }
@@ -728,13 +841,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { billDao.delete(bill) }
     }
 
-    /** Tandai tagihan bulan ini lunas + catat sebagai pengeluaran di dompet terakhir dipakai. */
+    /** Tandai tagihan bulan ini lunas + catat sebagai pengeluaran (Rp) di dompet Rupiah. */
     fun markBillPaid(bill: Bill) {
         viewModelScope.launch {
             val currentMonthKey = YearMonth.now().toString()
             if (bill.paidMonth == currentMonthKey) return@launch
             billDao.update(bill.copy(paidMonth = currentMonthKey))
-            val walletId = resolveDefaultWalletId()
+            // Tagihan selalu Rupiah — pakai dompet Rp, bukan dompet terakhir
+            // kalau dompet terakhir itu Dollar.
+            val walletList = walletDao.getAllOnce()
+            val idrWalletId = walletList.firstOrNull { (it.currency ?: "IDR") == "IDR" }?.id
+            val walletId = idrWalletId ?: resolveDefaultWalletId()
             dao.insert(
                 Transaction(
                     type = TxnType.EXPENSE.name,
@@ -761,8 +878,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             fun nameOf(id: Long?): String =
                 walletList.firstOrNull { it.id == id }?.name
                     ?: walletList.firstOrNull()?.name ?: "Dompet"
+            fun currencyOf(id: Long?): String =
+                walletList.firstOrNull { it.id == id }?.currency
+                    ?: walletList.firstOrNull()?.currency ?: "IDR"
             fun csvEscape(text: String): String = text.replace("\"", "\"\"")
-            val csv = StringBuilder("tanggal,tipe,kategori,dompet,jumlah,catatan\n")
+            val csv = StringBuilder("tanggal,tipe,kategori,dompet,mata_uang,jumlah,catatan\n")
             txs.forEach { tx ->
                 val typeLabel = when (tx.type) {
                     TxnType.INCOME.name -> "Pemasukan"
@@ -778,6 +898,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     .append(',').append(typeLabel)
                     .append(',').append(Category.fromName(tx.category).label)
                     .append(',').append(walletLabel)
+                    .append(',').append(currencyOf(tx.walletId))
                     .append(',').append(tx.amount)
                     .append(",\"").append(csvEscape(tx.note)).append("\"\n")
             }
@@ -888,4 +1009,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setBudgetBelanja(value: Long) = settings.setBudgetBelanja(value)
     fun setBudgetDarurat(value: Long) = settings.setBudgetDarurat(value)
     fun setBudgetTabungan(value: Long) = settings.setBudgetTabungan(value)
+    fun setDisplayName(value: String) = settings.setDisplayName(value)
+    fun setDefaultCurrency(code: String) = settings.setDefaultCurrency(code)
+    fun setDefaultWallet(id: Long) = settings.setLastWalletId(id)
 }

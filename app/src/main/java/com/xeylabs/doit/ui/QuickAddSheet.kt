@@ -50,7 +50,8 @@ import java.time.LocalDate
 @Composable
 fun QuickAddSheet(
     viewModel: MainViewModel,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    initialType: TxnType? = null
 ) {
     val lastCategoryName by viewModel.lastCategory.collectAsState()
     val recentCategories by viewModel.recentCategories.collectAsState()
@@ -58,15 +59,18 @@ fun QuickAddSheet(
     val lastWalletId by viewModel.lastWalletId.collectAsState()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    var type by remember { mutableStateOf(TxnType.EXPENSE) }
+    var type by remember { mutableStateOf(initialType ?: TxnType.EXPENSE) }
     var amount by remember { mutableStateOf(0L) }
     var selectedWalletId by remember { mutableStateOf<Long?>(null) }
     val effectiveWalletId = selectedWalletId
         ?: wallets.firstOrNull { it.id == lastWalletId }?.id
         ?: wallets.firstOrNull()?.id
+    val effectiveWallet = wallets.firstOrNull { it.id == effectiveWalletId }
+    val walletCurrency = com.xeylabs.doit.data.walletCurrency(effectiveWallet)
     val initialCategory = remember(lastCategoryName) {
         val last = lastCategoryName?.let { Category.fromName(it) }
-        if (last != null && last.type == TxnType.EXPENSE) last else Category.BELANJA
+        if (last != null && last.type == type) last
+        else if (type == TxnType.INCOME) Category.GAJI else Category.BELANJA
     }
     var category by remember { mutableStateOf(initialCategory) }
     var date by remember { mutableStateOf(LocalDate.now()) }
@@ -108,7 +112,7 @@ fun QuickAddSheet(
             }
 
             Text(
-                text = formatRupiah(amount),
+                text = formatMoney(amount, walletCurrency),
                 style = MaterialTheme.typography.displayLarge,
                 fontWeight = FontWeight.Bold,
                 color = if (type == TxnType.INCOME) {
@@ -160,7 +164,12 @@ fun QuickAddSheet(
                         FilterChip(
                             selected = effectiveWalletId == wallet.id,
                             onClick = { selectedWalletId = wallet.id },
-                            label = { Text(wallet.name) }
+                            label = {
+                                Text(
+                                    wallet.name + " · " +
+                                        com.xeylabs.doit.data.walletCurrency(wallet).symbol
+                                )
+                            }
                         )
                     }
                 }

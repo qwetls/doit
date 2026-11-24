@@ -19,5 +19,7 @@ data class Wallet(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
     val type: String,
-    val initialBalance: Long = 0
+    val initialBalance: Long = 0,
+    // Kode mata uang: "IDR" atau "USD". Null = dompet lama (v1.4.0 ke bawah) = IDR.
+    val currency: String? = null
 )

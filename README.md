@@ -2,6 +2,14 @@
 
 Aplikasi pencatat uang yang ringan — money management untuk gaji Rp1.000.000/bulan.
 
+**v1.4.0 — Desain baru ala app bank + Rp & Dollar:**
+- Beranda ala app bank: avatar profil paling kiri (ketuk → Profil & Pengaturan), sapaan "Halo, Adrien", total saldo besar dengan animasi, baris Masuk / Keluar / Sisa bulan ini, tombol besar **+ Pemasukan** (hijau) / **+ Pengeluaran** (merah) yang membuka sheet dengan jenis yang benar. Pemasukan universal (sumber tetap Gaji pokok, Lembur, Sampingan, Lain-lain); catatan opsional ada di pemasukan dan pengeluaran.
+- Dompet multi + 2 mata uang saja (Rp & Dollar): tiap dompet punya mata uang; dompet lama default Rp. Ringkasan Tunai · E-money · Bank per mata uang, tidak dicampur. Transfer menampilkan arah eksplisit ("Tunai → GoPay"); transfer Rp ↔ $ tanpa kurs otomatis — jumlah diterima diisi manual.
+- Paylater & Utang Piutang (bagian khusus di Rencana): jenis Utang / Piutang / Paylater + nama penyedia untuk Paylater (mis. GoPay Later, SPayLater). Paylater otomatis berarti kamu meminjam.
+- Profil & Pengaturan (baru, dari avatar Beranda): nama tampilan, mata uang utama (Rp/$), dompet utama, pemasukan bulanan, jalan pintas ke Rencana/Laporan, versi aplikasi + cek update (self-update yang sama). Tanpa login, tanpa foto — avatar inisial.
+- Migrasi aman ke database v4 (migrasi nyata v3→v4): dompet lama dapat kolom mata uang (default IDR), utang lama dapat jenis + penyedia — semua data dipertahankan.
+- Batas yang disengaja: anggaran, target tabungan, tagihan, dan utang tetap dalam Rp. Kalau mata uang utama diganti ke Dollar, ringkasan memakai $, tetapi anggaran yang sudah diset tetap dibandingkan dalam Rp — set ulang anggaran setelah pindah mata uang kalau perlu. Jumlah Dollar ditampilkan tanpa sen (angka bulat).
+
 **v1.3.0 — Restruktur (satu tab = satu tugas):**
 - Tab "Keuangan" dibongkar — tiap fitur kini hidup di tepat satu tempat, tanpa duplikasi.
 - Beranda (ringkasan saja): total saldo dompet, masuk/keluar bulan ini, grafik 7 hari / 6 bulan, donut per kategori, cincin anggaran, kartu target tabungan, kartu "Perhatian" (tagihan jatuh tempo ≤7 hari / terlambat + anggaran hampir/habis, ketuk → lompat ke Rencana). Pemasukan per sumber pindah sepenuhnya ke Laporan.
@@ -32,6 +40,8 @@ Aplikasi pencatat uang yang ringan — money management untuk gaji Rp1.000.000/b
 - Lokal saja (Room/SQLite di HP) — tanpa server, tanpa login, tanpa biaya. Grafik custom Canvas, tanpa library chart berat.
 
 **v1.0.0 — Money management (rilis pertama):** catat pemasukan/pengeluaran, anggaran, progres tabungan laptop, riwayat.
+
+**Catatan migrasi v1.4.0:** database naik ke versi 4 dengan migrasi nyata (v3→v4) — kolom mata uang di dompet, jenis + penyedia di utang, kolom jumlah-diterima di transaksi transfer; semua data lama dipertahankan; `fallbackToDestructiveMigration` tetap dihapus.
 
 **Catatan migrasi v1.2.0:** database naik ke versi 3 dengan migrasi nyata (v1→v3 dan v2→v3) — data lama dipertahankan; `fallbackToDestructiveMigration` dihapus, upgrade selanjutnya tidak boleh menghapus data.
 

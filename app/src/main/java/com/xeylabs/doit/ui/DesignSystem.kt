@@ -58,6 +58,7 @@ fun AnimatedMoney(
     amount: Long,
     style: TextStyle,
     color: Color = MaterialTheme.colorScheme.onSurface,
+    currency: com.xeylabs.doit.data.Currency = com.xeylabs.doit.data.Currency.IDR,
     modifier: Modifier = Modifier
 ) {
     val anim = remember { Animatable(0f) }
@@ -66,7 +67,7 @@ fun AnimatedMoney(
         anim.animateTo(1f, animationSpec = tween(durationMillis = 700))
     }
     Text(
-        text = formatRupiah((amount * anim.value).toLong()),
+        text = formatMoney((amount * anim.value).toLong(), currency),
         style = style,
         fontWeight = FontWeight.Bold,
         color = color,

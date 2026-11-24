@@ -36,6 +36,14 @@ class SettingsStore(context: Context) {
         MutableStateFlow(prefs.getLong(KEY_LAST_WALLET_ID, 0L))
     val lastWalletId: StateFlow<Long> = _lastWalletId
 
+    private val _displayName =
+        MutableStateFlow(prefs.getString(KEY_DISPLAY_NAME, "Adrien") ?: "Adrien")
+    val displayName: StateFlow<String> = _displayName
+
+    private val _defaultCurrency =
+        MutableStateFlow(prefs.getString(KEY_DEFAULT_CURRENCY, "IDR") ?: "IDR")
+    val defaultCurrency: StateFlow<String> = _defaultCurrency
+
     fun setBudgetBelanja(value: Long) = save(KEY_BUDGET_BELANJA, value, _budgetBelanja)
     fun setBudgetDarurat(value: Long) = save(KEY_BUDGET_DARURAT, value, _budgetDarurat)
     fun setBudgetTabungan(value: Long) = save(KEY_BUDGET_TABUNGAN, value, _budgetTabungan)
@@ -57,6 +65,18 @@ class SettingsStore(context: Context) {
         _lastWalletId.value = id
     }
 
+    fun setDisplayName(value: String) {
+        val name = value.trim().ifBlank { "Adrien" }
+        prefs.edit().putString(KEY_DISPLAY_NAME, name).apply()
+        _displayName.value = name
+    }
+
+    fun setDefaultCurrency(code: String) {
+        val normalized = if (code == "USD") "USD" else "IDR"
+        prefs.edit().putString(KEY_DEFAULT_CURRENCY, normalized).apply()
+        _defaultCurrency.value = normalized
+    }
+
     private fun save(key: String, value: Long, flow: MutableStateFlow<Long>) {
         prefs.edit().putLong(key, value).apply()
         flow.value = value
@@ -71,5 +91,7 @@ class SettingsStore(context: Context) {
         const val KEY_ONBOARDING_DONE = "onboarding_done"
         const val KEY_LAST_CATEGORY = "last_category"
         const val KEY_LAST_WALLET_ID = "last_wallet_id"
+        const val KEY_DISPLAY_NAME = "display_name"
+        const val KEY_DEFAULT_CURRENCY = "default_currency"
     }
 }

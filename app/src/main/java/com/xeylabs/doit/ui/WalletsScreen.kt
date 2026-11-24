@@ -31,11 +31,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.xeylabs.doit.data.Currency
 import com.xeylabs.doit.data.Wallet
 import com.xeylabs.doit.data.WalletType
+import com.xeylabs.doit.data.walletCurrency
 import com.xeylabs.doit.ui.theme.ExpenseRed
 import com.xeylabs.doit.viewmodel.MainViewModel
-import java.time.LocalDate
 
 /**
  * Dompet — satu-satunya tempat mengelola dompet dan transfer antar dompet.
@@ -56,6 +57,71 @@ fun WalletsScreen(viewModel: MainViewModel) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text("Dompet", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+
+        // Ringkasan Cash vs E-money vs Bank, per mata uang — ketahuan cash
+        // berapa dan e-money berapa, tanpa mencampur Rp dan Dollar.
+        DoitCard {
+            SectionTitle("Cash vs E-money")
+            Spacer(modifier = Modifier.height(8.dp))
+            val currencies = walletBalances.map { it.wallet.currency ?: "IDR" }.distinct()
+            if (walletBalances.isEmpty()) {
+                Text(
+                    "Belum ada dompet.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                currencies.forEach { code ->
+                    val currency = Currency.fromCode(code)
+                    fun totalOf(type: WalletType): Long =
+                        walletBalances
+                            .filter {
+                                WalletType.fromName(it.wallet.type) == type &&
+                                    (it.wallet.currency ?: "IDR") == code
+                            }
+                            .sumOf { it.balance }
+                    val label = if (code == "IDR") "Rupiah" else "Dollar"
+                    Text(
+                        label,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Tunai", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            formatMoney(totalOf(WalletType.TUNAI), currency),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("E-money", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            formatMoney(totalOf(WalletType.EWALLET), currency),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Bank", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            formatMoney(totalOf(WalletType.BANK), currency),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
 
         DoitCard {
             Row(
@@ -94,13 +160,17 @@ fun WalletsScreen(viewModel: MainViewModel) {
                                 fontWeight = FontWeight.Medium
                             )
                             Text(
-                                WalletType.fromName(walletBalance.wallet.type).label,
+                                WalletType.fromName(walletBalance.wallet.type).label + " · " +
+                                    walletCurrency(walletBalance.wallet).symbol,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         Text(
-                            formatRupiah(walletBalance.balance),
+                            formatMoney(
+                                walletBalance.balance,
+                                walletCurrency(walletBalance.wallet)
+                            ),
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Bold
                         )
@@ -128,8 +198,8 @@ fun WalletsScreen(viewModel: MainViewModel) {
         WalletEditDialog(
             initial = null,
             onDismiss = { showAddWallet = false },
-            onSave = { name, type, balance ->
-                viewModel.addWallet(name, type, balance)
+            onSave = { name, type, currency, balance ->
+                viewModel.addWallet(name, type, currency, balance)
                 showAddWallet = false
             }
         )
@@ -139,8 +209,15 @@ fun WalletsScreen(viewModel: MainViewModel) {
         WalletEditDialog(
             initial = walletToEdit,
             onDismiss = { showWalletEdit = null },
-            onSave = { name, type, balance ->
-                viewModel.updateWallet(walletToEdit.copy(name = name, type = type.name, initialBalance = balance))
+            onSave = { name, type, currency, balance ->
+                viewModel.updateWallet(
+                    walletToEdit.copy(
+                        name = name,
+                        type = type.name,
+                        currency = currency.code,
+                        initialBalance = balance
+                    )
+                )
                 showWalletEdit = null
             }
         )
@@ -168,8 +245,8 @@ fun WalletsScreen(viewModel: MainViewModel) {
         TransferDialog(
             wallets = wallets,
             onDismiss = { showTransfer = false },
-            onSave = { fromId, toId, amount, note ->
-                viewModel.addTransfer(fromId, toId, amount, LocalDate.now(), note)
+            onSave = { fromId, toId, amount, receivedAmount, note ->
+                viewModel.addTransfer(fromId, toId, amount, receivedAmount, note = note)
                 showTransfer = false
             }
         )

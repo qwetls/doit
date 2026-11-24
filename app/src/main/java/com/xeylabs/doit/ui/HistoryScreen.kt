@@ -34,6 +34,8 @@ fun HistoryScreen(viewModel: MainViewModel) {
     val month by viewModel.selectedMonth.collectAsState()
     val history by viewModel.historyList.collectAsState()
     val selectedCategory by viewModel.historyCategory.collectAsState()
+    val selectedWalletId by viewModel.historyWalletId.collectAsState()
+    val wallets by viewModel.wallets.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     var editingTx by remember { mutableStateOf<Transaction?>(null) }
 
@@ -52,6 +54,23 @@ fun HistoryScreen(viewModel: MainViewModel) {
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
+        Spacer(modifier = Modifier.height(12.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            item {
+                FilterChip(
+                    selected = selectedWalletId == null,
+                    onClick = { viewModel.setHistoryWallet(null) },
+                    label = { Text("Semua dompet") }
+                )
+            }
+            items(wallets, key = { it.id }) { wallet ->
+                FilterChip(
+                    selected = selectedWalletId == wallet.id,
+                    onClick = { viewModel.setHistoryWallet(wallet.id) },
+                    label = { Text(wallet.name) }
+                )
+            }
+        }
         Spacer(modifier = Modifier.height(12.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             item {

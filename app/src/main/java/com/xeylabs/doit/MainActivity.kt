@@ -8,10 +8,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.EventNote
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.Savings
-import androidx.compose.material.icons.filled.Wallet
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -30,27 +30,26 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.xeylabs.doit.ui.BudgetScreen
-import com.xeylabs.doit.ui.FinanceScreen
 import com.xeylabs.doit.ui.HistoryScreen
 import com.xeylabs.doit.ui.HomeScreen
 import com.xeylabs.doit.ui.OnboardingScreen
+import com.xeylabs.doit.ui.PlansScreen
 import com.xeylabs.doit.ui.QuickAddSheet
-import com.xeylabs.doit.ui.SavingsScreen
+import com.xeylabs.doit.ui.ReportsScreen
+import com.xeylabs.doit.ui.WalletsScreen
 import com.xeylabs.doit.ui.theme.DoitTheme
 import com.xeylabs.doit.viewmodel.MainViewModel
 import com.xeylabs.doit.viewmodel.UpdateViewModel
 import com.xeylabs.doit.widget.DoitWidgetProvider
 
-private data class Tab(val label: String, val icon: ImageVector)
-
-private val tabs = listOf(
-    Tab("Beranda", Icons.Filled.Home),
-    Tab("Riwayat", Icons.Filled.List),
-    Tab("Tabungan", Icons.Filled.Savings),
-    Tab("Anggaran", Icons.Filled.Wallet),
-    Tab("Keuangan", Icons.Filled.AccountBalanceWallet)
-)
+/** Satu tab = satu tugas jelas. Urutan enum = urutan tab di bawah. */
+enum class DoitTab(val label: String, val icon: ImageVector) {
+    BERANDA("Beranda", Icons.Filled.Home),
+    RIWAYAT("Riwayat", Icons.Filled.List),
+    DOMPET("Dompet", Icons.Filled.AccountBalanceWallet),
+    RENCANA("Rencana", Icons.Filled.EventNote),
+    LAPORAN("Laporan", Icons.Filled.BarChart)
+}
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
@@ -76,7 +75,7 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MainScaffold(viewModel: MainViewModel, updateViewModel: UpdateViewModel) {
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab by remember { mutableStateOf(DoitTab.BERANDA) }
     var showAdd by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -87,10 +86,10 @@ private fun MainScaffold(viewModel: MainViewModel, updateViewModel: UpdateViewMo
         },
         bottomBar = {
             NavigationBar {
-                tabs.forEachIndexed { index, tab ->
+                DoitTab.entries.forEach { tab ->
                     NavigationBarItem(
-                        selected = selectedTab == index,
-                        onClick = { selectedTab = index },
+                        selected = selectedTab == tab,
+                        onClick = { selectedTab = tab },
                         icon = { Icon(tab.icon, contentDescription = tab.label) },
                         label = { Text(tab.label) }
                     )
@@ -105,11 +104,15 @@ private fun MainScaffold(viewModel: MainViewModel, updateViewModel: UpdateViewMo
     ) { padding ->
         Box(modifier = Modifier.padding(padding)) {
             when (selectedTab) {
-                0 -> HomeScreen(viewModel, updateViewModel, onOpenSavings = { selectedTab = 2 })
-                1 -> HistoryScreen(viewModel)
-                2 -> SavingsScreen(viewModel)
-                3 -> BudgetScreen(viewModel)
-                else -> FinanceScreen(viewModel)
+                DoitTab.BERANDA -> HomeScreen(
+                    viewModel = viewModel,
+                    updateViewModel = updateViewModel,
+                    onNavigate = { selectedTab = it }
+                )
+                DoitTab.RIWAYAT -> HistoryScreen(viewModel)
+                DoitTab.DOMPET -> WalletsScreen(viewModel)
+                DoitTab.RENCANA -> PlansScreen(viewModel)
+                DoitTab.LAPORAN -> ReportsScreen(viewModel)
             }
         }
         if (showAdd) {

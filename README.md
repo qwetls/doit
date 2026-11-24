@@ -2,6 +2,15 @@
 
 Aplikasi pencatat uang yang ringan — money management untuk gaji Rp1.000.000/bulan.
 
+**v1.3.0 — Restruktur (satu tab = satu tugas):**
+- Tab "Keuangan" dibongkar — tiap fitur kini hidup di tepat satu tempat, tanpa duplikasi.
+- Beranda (ringkasan saja): total saldo dompet, masuk/keluar bulan ini, grafik 7 hari / 6 bulan, donut per kategori, cincin anggaran, kartu target tabungan, kartu "Perhatian" (tagihan jatuh tempo ≤7 hari / terlambat + anggaran hampir/habis, ketuk → lompat ke Rencana). Pemasukan per sumber pindah sepenuhnya ke Laporan.
+- Riwayat: semua transaksi + cari + filter bulan/kategori, ditambah filter dompet baru; ubah/hapus per baris.
+- Dompet (baru): daftar dompet + saldo, tambah/ubah/hapus dompet, transfer antar dompet.
+- Rencana (baru): Anggaran, Target tabungan, Transaksi berulang, Utang & piutang, Tagihan & pengingat — tiap bagian punya judul sendiri.
+- Laporan (baru): arus kas, grafik 6 bulan, per kategori (donut), per sumber pemasukan, per dompet, ekspor CSV.
+- Tanpa perubahan data: skema database tetap v3, tanpa migrasi.
+
 **v1.2.0 — Financial app:**
 - Dompet ganda: Tunai + SeaBank sebagai default (bisa tambah/ubah/hapus); saldo per dompet; pilih dompet saat mencatat; transfer antar dompet sebagai tipe sendiri (bukan pemasukan/pengeluaran).
 - Gaji & pemasukan lain: sumber pemasukan Gaji pokok, Lembur, Sampingan, Lain-lain; ringkasan per sumber per bulan di Beranda dan Laporan.

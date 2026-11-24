@@ -100,6 +100,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val selectedMonth = MutableStateFlow(YearMonth.now())
     val historyCategory = MutableStateFlow<Category?>(null)
+    val historyWalletId = MutableStateFlow<Long?>(null)
     val searchQuery = MutableStateFlow("")
 
     val onboardingDone: StateFlow<Boolean> = settings.onboardingDone
@@ -487,11 +488,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     val historyList: StateFlow<List<Transaction>> = combine(
-        allTransactions, selectedMonth, historyCategory, searchQuery
-    ) { txs, month, category, query ->
+        allTransactions, selectedMonth, historyCategory, searchQuery, historyWalletId
+    ) { txs, month, category, query, walletId ->
         val q = query.trim()
+        // Transaksi lama tanpa walletId dihitung ke dompet pertama (dompet default).
+        val defaultId = wallets.value.firstOrNull()?.id
         txs.filter { YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == month }
             .filter { category == null || it.category == category.name }
+            .filter { walletId == null || (it.walletId ?: defaultId) == walletId }
             .filter {
                 q.isEmpty() ||
                     it.note.contains(q, ignoreCase = true) ||
@@ -870,6 +874,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setHistoryCategory(category: Category?) {
         historyCategory.value = category
+    }
+
+    fun setHistoryWallet(walletId: Long?) {
+        historyWalletId.value = walletId
     }
 
     fun setSearchQuery(query: String) {

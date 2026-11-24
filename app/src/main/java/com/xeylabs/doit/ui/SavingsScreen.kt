@@ -4,14 +4,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -43,7 +39,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Composable
-fun SavingsScreen(viewModel: MainViewModel) {
+fun SavingsSection(viewModel: MainViewModel) {
     val state by viewModel.uiState.collectAsState()
     var showAddGoal by remember { mutableStateOf(false) }
     var addAmountGoal by remember { mutableStateOf<SavingsGoal?>(null) }
@@ -53,12 +49,7 @@ fun SavingsScreen(viewModel: MainViewModel) {
     val totalSaved = state.goals.sumOf { it.saved }
     val totalTarget = state.goals.sumOf { it.target }
 
-    Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Text("Target tabungan", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         DoitCard {
             Text(
                 "Total terkumpul",
@@ -112,7 +103,6 @@ fun SavingsScreen(viewModel: MainViewModel) {
             Spacer(modifier = Modifier.width(8.dp))
             Text("Buat target baru")
         }
-        Spacer(modifier = Modifier.height(72.dp))
     }
 
     if (showAddGoal) {

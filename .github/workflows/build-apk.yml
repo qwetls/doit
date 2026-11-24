@@ -78,24 +78,22 @@ jobs:
           VERSION_NAME: ${{ steps.apk.outputs.version }}
         run: |
           cat > RELEASE_NOTES.md <<'EOF'
-          ## do.it v1.2.0 — Financial app: dompet ganda, gaji & sumber pemasukan, rutin, utang, tagihan, laporan
+          ## do.it v1.3.0 — Restruktur: 5 tab dengan satu tugas jelas
 
-          - **Dompet ganda**:
-            - Dompet default Tunai + SeaBank (bisa tambah, ubah nama, hapus); saldo tiap dompet = saldo awal + pemasukan − pengeluaran − transfer keluar + transfer masuk. Pilih dompet saat mencatat (dompet terakhir dipakai jadi default).
-          - **Transfer antar dompet**:
-            - Satu baris tipe Transfer — bukan pemasukan/pengeluaran, jadi tidak mengacaukan laporan arus kas.
-          - **Gaji & pemasukan lain**:
-            - Sumber pemasukan jadi kelas satu: Gaji pokok, Lembur, Sampingan, Lain-lain. Ringkasan per sumber per bulan di Beranda dan di Laporan.
-          - **Transaksi berulang**:
-            - Jadwal bulanan (tanggal 1–31) atau mingguan (hari Senin–Minggu), bisa on/off, ubah, hapus. Dievaluasi tiap aplikasi dibuka — tanggal yang terlewat langsung dibuatkan transaksinya (tanpa WorkManager, tanpa notifikasi).
-          - **Utang & piutang**:
-            - Catat siapa, berapa, arah (kamu meminjam / kamu meminjamkan), bayar sebagian sampai lunas.
-          - **Tagihan & pengingat**:
-            - Tagihan bulanan dengan tanggal jatuh tempo; Beranda menampilkan yang jatuh tempo ≤7 hari atau sudah terlambat. Menandai "Bayar" mencatatnya sebagai pengeluaran di dompet terakhir dipakai.
-          - **Laporan + ekspor CSV**:
-            - Ringkasan arus kas bulanan: total masuk/keluar/bersih, per kategori, per dompet, per sumber pemasukan. Ekspor riwayat bulan berjalan ke CSV lewat share intent (FileProvider).
-          - **Migrasi aman**:
-            - Database naik ke versi 3 dengan migrasi nyata (v1→v3 dan v2→v3): transaksi, target tabungan, dan pengaturan lama dipertahankan. `fallbackToDestructiveMigration` dihapus — upgrade selanjutnya tidak boleh menghapus data lagi.
+          Tab "Keuangan" yang menumpuk semua fitur dibongkar — tiap fitur kini hidup di tepat satu tempat:
+          - **Beranda** (ringkasan saja):
+            - Total saldo semua dompet, masuk/keluar bulan ini, grafik 7 hari / 6 bulan, donut per kategori, cincin anggaran, kartu target tabungan.
+            - Kartu "Perhatian" baru: tagihan jatuh tempo ≤7 hari / terlambat + anggaran yang hampir atau sudah habis — ketuk untuk lompat ke tab pemiliknya (Rencana). Pemasukan per sumber tidak lagi di Beranda, hanya di Laporan.
+          - **Riwayat**:
+            - Semua transaksi + cari + filter bulan/kategori, ditambah filter dompet baru; ubah/hapus per baris tetap ada.
+          - **Dompet** (baru):
+            - Daftar dompet + saldo, tambah/ubah/hapus dompet, transfer antar dompet. Pindah dari tab Keuangan lama.
+          - **Rencana** (baru):
+            - Perencanaan & kewajiban dalam satu tab, tiap bagian punya judul sendiri: Anggaran, Target tabungan, Transaksi berulang, Utang & piutang, Tagihan & pengingat.
+          - **Laporan** (baru):
+            - Hanya laporan: arus kas (masuk/keluar/bersih), grafik 6 bulan, per kategori (donut), per sumber pemasukan, per dompet, ekspor CSV.
+          - **Tanpa perubahan data**:
+            - Skema database tetap v3, tanpa migrasi — semua data, dompet, rutin, utang, tagihan, dan target tabungan lama dipertahankan.
           - **Tetap ringan dan lokal**:
             - Semua data di HP (Room/SQLite); tanpa server, tanpa login, tanpa biaya, tanpa library baru yang berat.
 
@@ -107,7 +105,7 @@ jobs:
             "${{ steps.apk.outputs.release_path }}.sha256" \
             "${{ steps.apk.outputs.debug_path }}" \
             "${{ steps.apk.outputs.debug_path }}.sha256" \
-            --title "do.it $RELEASE_TAG (Financial app — dompet ganda, gaji, rutin, utang, tagihan & laporan)" \
+            --title "do.it $RELEASE_TAG (Restruktur — Beranda, Riwayat, Dompet, Rencana & Laporan)" \
             --notes-file RELEASE_NOTES.md \
             --latest
 

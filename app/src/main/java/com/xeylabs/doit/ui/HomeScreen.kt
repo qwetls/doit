@@ -1,5 +1,6 @@
 package com.xeylabs.doit.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.xeylabs.doit.DoitTab
 import com.xeylabs.doit.ui.theme.ExpenseRed
 import com.xeylabs.doit.ui.theme.HeroViolet
 import com.xeylabs.doit.ui.theme.IncomeGreen
@@ -51,7 +53,7 @@ import java.time.temporal.ChronoUnit
 fun HomeScreen(
     viewModel: MainViewModel,
     updateViewModel: UpdateViewModel,
-    onOpenSavings: () -> Unit
+    onNavigate: (DoitTab) -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
     val month by viewModel.selectedMonth.collectAsState()
@@ -107,8 +109,19 @@ fun HomeScreen(
         }
 
         if (state.wallets.isNotEmpty()) {
-            DoitCard {
-                SectionTitle("Dompet")
+            DoitCard(modifier = Modifier.clickable { onNavigate(DoitTab.DOMPET) }) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SectionTitle("Dompet")
+                    Text(
+                        "Kelola ›",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = VioletAccent
+                    )
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -146,30 +159,24 @@ fun HomeScreen(
             }
         }
 
-        if (state.incomeBySource.isNotEmpty()) {
-            DoitCard {
-                SectionTitle("Pemasukan per sumber bulan ini")
-                Spacer(modifier = Modifier.height(8.dp))
-                state.incomeBySource.forEach { source ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(source.category.label, style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            formatRupiah(source.amount),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                            color = IncomeGreen
-                        )
-                    }
-                }
+        // Perhatian: tagihan jatuh tempo ≤7 hari / terlambat + anggaran yang hampir/habis.
+        // Per-sumber pemasukan TIDAK di sini — hanya di Laporan.
+        val budgetAlerts = listOf(
+            "Belanja" to (state.belanjaSpent to state.budgetBelanja),
+            "Darurat" to (state.daruratSpent to state.budgetDarurat)
+        ).mapNotNull { (label, spentToBudget) ->
+            val (spent, budget) = spentToBudget
+            if (budget <= 0) return@mapNotNull null
+            val ratio = spent.toFloat() / budget.toFloat()
+            when {
+                ratio >= 1f -> "Anggaran $label sudah habis (lebih " + formatRupiah(spent - budget) + ")"
+                ratio >= 0.8f -> "Anggaran $label hampir habis — sisa " + formatRupiah(budget - spent)
+                else -> null
             }
         }
-
-        if (state.dueBills.isNotEmpty()) {
+        if (state.dueBills.isNotEmpty() || budgetAlerts.isNotEmpty()) {
             DoitCard {
-                SectionTitle("Tagihan segera jatuh tempo")
+                SectionTitle("Perhatian")
                 Spacer(modifier = Modifier.height(8.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     state.dueBills.forEach { due ->
@@ -181,7 +188,7 @@ fun HomeScreen(
                             else -> "Jatuh tempo dalam $daysLeft hari"
                         }
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().clickable { onNavigate(DoitTab.RENCANA) },
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -200,6 +207,29 @@ fun HomeScreen(
                             TextButton(onClick = { viewModel.markBillPaid(due.bill) }) {
                                 Text("Bayar")
                             }
+                        }
+                    }
+                    budgetAlerts.forEach { alertText ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clickable { onNavigate(DoitTab.RENCANA) },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Warning,
+                                contentDescription = null,
+                                tint = WarningAmber,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                            Text(
+                                text = alertText,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                "Rencana ›",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = VioletAccent
+                            )
                         }
                     }
                 }
@@ -272,11 +302,19 @@ fun HomeScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            TextButton(onClick = { onNavigate(DoitTab.LAPORAN) }) { Text("Lihat laporan ›") }
         }
 
         if (state.categoryBreakdown.isNotEmpty()) {
             DoitCard {
-                SectionTitle("Per kategori bulan ini")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SectionTitle("Per kategori bulan ini")
+                    TextButton(onClick = { onNavigate(DoitTab.LAPORAN) }) { Text("Laporan ›") }
+                }
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -325,7 +363,14 @@ fun HomeScreen(
         }
 
         DoitCard {
-            SectionTitle("Anggaran bulan ini")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SectionTitle("Anggaran bulan ini")
+                TextButton(onClick = { onNavigate(DoitTab.RENCANA) }) { Text("Atur anggaran") }
+            }
             Spacer(modifier = Modifier.height(12.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -355,7 +400,7 @@ fun HomeScreen(
             ).firstOrNull { (spent, budget) -> budget > 0 && spent >= budget }
             if (worstAlert != null) {
                 Text(
-                    text = "Ada anggaran yang sudah habis atau terlampaui — cek Riwayat untuk melihat penyebabnya.",
+                    text = "Ada anggaran yang sudah habis atau terlampaui — cek Rencana untuk melihat penyebabnya.",
                     style = MaterialTheme.typography.bodySmall,
                     color = ExpenseRed
                 )
@@ -370,7 +415,7 @@ fun HomeScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     SectionTitle("Tabungan ${defaultGoal.name}")
-                    TextButton(onClick = onOpenSavings) { Text("Semua target") }
+                    TextButton(onClick = { onNavigate(DoitTab.RENCANA) }) { Text("Semua target") }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -416,7 +461,14 @@ fun HomeScreen(
             }
         }
 
-        Text("Terakhir dicatat", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Terakhir dicatat", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            TextButton(onClick = { onNavigate(DoitTab.RIWAYAT) }) { Text("Lihat semua") }
+        }
         if (state.recent.isEmpty()) {
             DoitCard {
                 Text(

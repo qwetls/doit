@@ -4,13 +4,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -33,7 +29,7 @@ import com.xeylabs.doit.ui.theme.WarningAmber
 import com.xeylabs.doit.viewmodel.MainViewModel
 
 @Composable
-fun BudgetScreen(viewModel: MainViewModel) {
+fun BudgetSection(viewModel: MainViewModel) {
     val state by viewModel.uiState.collectAsState()
     var incomeText by remember(state.monthlyIncome) { mutableStateOf(state.monthlyIncome.toString()) }
     var belanjaText by remember(state.budgetBelanja) { mutableStateOf(state.budgetBelanja.toString()) }
@@ -41,11 +37,7 @@ fun BudgetScreen(viewModel: MainViewModel) {
     var tabunganText by remember(state.budgetTabungan) { mutableStateOf(state.budgetTabungan.toString()) }
     var savedMessage by remember { mutableStateOf("") }
 
-    Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Text("Anggaran bulanan", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(
             "Patokan dari gaji Rp1.000.000: 200rb belanja, 100rb darurat, 700rb tabungan. Ubah sesuai kebutuhanmu.",
             style = MaterialTheme.typography.bodyMedium,
@@ -96,7 +88,6 @@ fun BudgetScreen(viewModel: MainViewModel) {
                 Text(savedMessage, style = MaterialTheme.typography.bodyMedium)
             }
         }
-        Spacer(modifier = Modifier.height(72.dp))
     }
 }
 

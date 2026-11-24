@@ -400,6 +400,7 @@ fun RecurringEditDialog(
 
 // ---------- Utang & piutang ----------
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebtEditDialog(
     onDismiss: () -> Unit,

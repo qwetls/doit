@@ -78,24 +78,26 @@ jobs:
           VERSION_NAME: ${{ steps.apk.outputs.version }}
         run: |
           cat > RELEASE_NOTES.md <<'EOF'
-          ## do.it v1.0.0 — Money management, pertama rilis
+          ## do.it v1.1.0 — Unicorn-grade MVP: dashboard, insight & widget
 
-          - **Catat pemasukan dan pengeluaran**:
-            - Jumlah (Rp), kategori, tanggal (default hari ini, bisa digeser), dan catatan singkat. Pemasukan: Gaji dan Lain-lain. Pengeluaran: Belanja harian, Makan, Transport, Darurat, Lain-lain.
-          - **Anggaran bulanan**:
-            - Patokan dari gaji Rp1.000.000: Belanja Rp200.000, Dana darurat Rp100.000, Tabungan laptop Rp700.000. Semua batas bisa diubah di tab Anggaran.
-          - **Beranda**:
-            - Total masuk, keluar, dan sisa bulan ini; pemakaian anggaran Belanja dan Darurat; progres tabungan laptop; dan 5 catatan terakhir.
-          - **Tabungan laptop**:
-            - Target default Rp3.000.000 (bisa diubah). Tabungan dihitung dari total pemasukan dikurangi total pengeluaran selama ini, plus perkiraan bulan tercapai dari rata-rata nabung bersih per bulan.
+          - **Dashboard baru**:
+            - Kartu hero saldo bulan ini (masuk, keluar, sisa) dengan angka animasi; grafik batang pengeluaran 7 hari terakhir dan 6 bulan terakhir; donut pengeluaran per kategori dengan legenda; cincin anggaran Belanja, Darurat, dan Tabungan dengan peringatan 80% (kuning) dan 100%+ (merah).
+          - **Insight otomatis**:
+            - Pengeluaran dibanding bulan lalu, kategori terbesar bulan ini, perkiraan sisa hari anggaran, dan proyeksi tanggal tercapai target tabungan — dihitung dari data lokal saja.
+          - **Onboarding (sekali saat pertama buka)**:
+            - Atur pemasukan bulanan, tiga anggaran (default 200rb/100rb/700rb), dan target laptop (default Rp3.000.000). Bisa dilewati dan diubah nanti di tab Anggaran.
+          - **Quick add**:
+            - Bottom sheet dengan keypad kalkulator, kategori terakhir dipakai sebagai default, dan baris kategori yang sering dipakai.
           - **Riwayat**:
-            - Semua catatan per bulan, bisa difilter per kategori, dan bisa dihapus.
-          - **Lokal saja, tanpa akun**:
-            - Semua data tersimpan di HP (Room/SQLite). Tidak ada server, tidak ada login, tidak ada biaya.
-          - **Ringan**:
-            - Tanpa pemutar musik dan tanpa library berat — APK rilis hanya beberapa MB.
-          - **Yang belum ada (rencana v2)**:
-            - Shift kerja, muat mobil, ekspor/backup data, dan pengingat harian.
+            - Cari catatan (teks, kategori, jumlah), filter per kategori dan bulan, dan ubah catatan yang sudah ada (sebelumnya hanya bisa hapus).
+          - **Target tabungan lebih dari satu**:
+            - Laptop tetap target utama; tambah target sendiri (nama + target), tambah tabungan manual per target, ubah target, dan hapus target tambahan. Progres dan proyeksi per target.
+          - **Widget layar utama**:
+            - Sisa bulan ini, sisa anggaran, dan progres tabungan — ketuk widget untuk membuka aplikasi.
+          - **Tetap ringan dan lokal**:
+            - Grafik digambar sendiri dengan Canvas (tanpa library chart berat); semua data di HP (Room/SQLite); tanpa server, tanpa login, tanpa biaya.
+          - **Catatan migrasi**:
+            - Database naik ke versi 2 dengan target tabungan sebagai tabel baru. Data lama dihapus saat upgrade (fallbackToDestructiveMigration) karena aplikasi baru berumur satu hari.
 
           Published signed release and debug APKs.
           EOF
@@ -105,7 +107,7 @@ jobs:
             "${{ steps.apk.outputs.release_path }}.sha256" \
             "${{ steps.apk.outputs.debug_path }}" \
             "${{ steps.apk.outputs.debug_path }}.sha256" \
-            --title "do.it $RELEASE_TAG (Money management — first release)" \
+            --title "do.it $RELEASE_TAG (Unicorn-grade MVP — dashboard, insights & widget)" \
             --notes-file RELEASE_NOTES.md \
             --latest
 

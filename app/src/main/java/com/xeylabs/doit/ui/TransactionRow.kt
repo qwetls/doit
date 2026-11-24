@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,6 +34,7 @@ import com.xeylabs.doit.ui.theme.IncomeGreen
 @Composable
 fun TransactionRow(
     tx: Transaction,
+    onEdit: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -73,6 +75,15 @@ fun TransactionRow(
             fontWeight = FontWeight.Bold,
             color = if (isIncome) IncomeGreen else ExpenseRed
         )
+        if (onEdit != null) {
+            IconButton(onClick = onEdit) {
+                Icon(
+                    Icons.Filled.Edit,
+                    contentDescription = "Ubah",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
         if (onDelete != null) {
             IconButton(onClick = onDelete) {
                 Icon(

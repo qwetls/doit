@@ -2,13 +2,20 @@
 
 Aplikasi pencatat uang yang ringan — money management untuk gaji Rp1.000.000/bulan.
 
-**v1.0.0 — Money management:**
-- Catat pemasukan (Gaji, Lain-lain) dan pengeluaran (Belanja harian, Makan, Transport, Darurat, Lain-lain) — jumlah, kategori, tanggal, catatan.
-- Anggaran bulanan: Belanja Rp200.000, Dana darurat Rp100.000, Tabungan laptop Rp700.000 — semua bisa diubah.
-- Beranda: total masuk/keluar/sisa bulan ini, pemakaian anggaran, progres tabungan laptop, catatan terakhir.
-- Tabungan laptop: target default Rp3.000.000 (bisa diubah), terkumpul, sisa, perkiraan bulan tercapai.
-- Riwayat: semua catatan per bulan, filter per kategori, hapus catatan.
-- Lokal saja (Room/SQLite di HP) — tanpa server, tanpa login, tanpa biaya.
+**v1.1.0 — Unicorn-grade MVP:**
+- Dashboard baru: kartu hero saldo bulan ini (angka animasi), grafik batang pengeluaran 7 hari / 6 bulan, donut pengeluaran per kategori, cincin anggaran Belanja/Darurat/Tabungan dengan peringatan 80% (kuning) dan 100%+ (merah).
+- Insight otomatis: pengeluaran dibanding bulan lalu, kategori terbesar, perkiraan sisa hari anggaran, proyeksi tanggal tercapai target tabungan.
+- Onboarding sekali saat pertama buka: pemasukan bulanan, tiga anggaran (default 200rb/100rb/700rb), target laptop (default Rp3.000.000). Bisa dilewati.
+- Quick add: bottom sheet dengan keypad kalkulator, kategori terakhir dipakai sebagai default, baris kategori yang sering dipakai.
+- Riwayat: cari catatan, filter per kategori dan bulan, ubah catatan yang sudah ada.
+- Target tabungan lebih dari satu: Laptop tetap target utama; tambah target sendiri, tambah tabungan manual per target, ubah dan hapus target tambahan.
+- Widget layar utama: sisa bulan ini, sisa anggaran, progres tabungan.
+- Anggaran bulanan: Belanja Rp200.000, Dana darurat Rp100.000, Tabungan laptop Rp700.000 — semua bisa diubah, termasuk pemasukan bulanan.
+- Lokal saja (Room/SQLite di HP) — tanpa server, tanpa login, tanpa biaya. Grafik custom Canvas, tanpa library chart berat.
+
+**v1.0.0 — Money management (rilis pertama):** catat pemasukan/pengeluaran, anggaran, progres tabungan laptop, riwayat.
+
+**Catatan migrasi v1.1.0:** database naik ke versi 2 (tabel target tabungan baru) dengan fallbackToDestructiveMigration — data v1.0.0 terhapus saat upgrade karena aplikasi baru berumur satu hari.
 
 **Rencana v2:** shift kerja, muat mobil, ekspor/backup data, pengingat harian.
 

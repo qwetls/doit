@@ -22,6 +22,19 @@
             </intent-filter>
         </activity>
 
+        <receiver
+            android:name=".widget.DoitWidgetProvider"
+            android:exported="true"
+            android:label="do.it">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.xeylabs.doit.action.REFRESH_WIDGET" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/doit_widget_info" />
+        </receiver>
+
     </application>
 
 </manifest>

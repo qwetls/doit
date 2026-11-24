@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="do.it"
+        android:textColor="#F5F5F7"
+        android:textSize="13sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Sisa bulan ini"
+        android:textColor="#9A9AA5"
+        android:textSize="12sp"
+        android:layout_marginTop="6dp" />
+
+    <TextView
+        android:id="@+id/widget_remaining"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Rp0"
+        android:textColor="#F5F5F7"
+        android:textSize="24sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/widget_budget"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Sisa anggaran: Rp0"
+        android:textColor="#9A9AA5"
+        android:textSize="12sp"
+        android:layout_marginTop="4dp" />
+
+    <TextView
+        android:id="@+id/widget_savings"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Belum ada target tabungan"
+        android:textColor="#9A9AA5"
+        android:textSize="12sp"
+        android:layout_marginTop="8dp" />
+
+    <ProgressBar
+        android:id="@+id/widget_savings_bar"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="6dp"
+        android:layout_marginTop="6dp"
+        android:max="100"
+        android:progress="0"
+        android:progressTint="#8B5CF6" />
+
+</LinearLayout>

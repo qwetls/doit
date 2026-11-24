@@ -14,6 +14,12 @@ interface TransactionDao {
     @Insert
     suspend fun insert(tx: Transaction)
 
+    @Update
+    suspend fun update(tx: Transaction)
+
+    @Query("SELECT * FROM transactions ORDER BY dateEpochDay DESC, id DESC")
+    suspend fun getAllOnce(): List<Transaction>
+
     @Delete
     suspend fun delete(tx: Transaction)
 }

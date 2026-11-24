@@ -20,6 +20,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -28,13 +29,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.xeylabs.doit.ui.AddTransactionDialog
 import com.xeylabs.doit.ui.BudgetScreen
 import com.xeylabs.doit.ui.HistoryScreen
 import com.xeylabs.doit.ui.HomeScreen
+import com.xeylabs.doit.ui.OnboardingScreen
+import com.xeylabs.doit.ui.QuickAddSheet
 import com.xeylabs.doit.ui.SavingsScreen
 import com.xeylabs.doit.ui.theme.DoitTheme
 import com.xeylabs.doit.viewmodel.MainViewModel
+import com.xeylabs.doit.widget.DoitWidgetProvider
 
 private data class Tab(val label: String, val icon: ImageVector)
 
@@ -49,52 +52,65 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        DoitWidgetProvider.refresh(this)
         setContent {
             DoitTheme {
                 val viewModel: MainViewModel = viewModel()
-                var selectedTab by remember { mutableStateOf(0) }
-                var showAdd by remember { mutableStateOf(false) }
+                val onboardingDone by viewModel.onboardingDone.collectAsState()
 
-                Scaffold(
-                    topBar = {
-                        CenterAlignedTopAppBar(
-                            title = { Text("do.it", fontWeight = FontWeight.Bold) }
-                        )
-                    },
-                    bottomBar = {
-                        NavigationBar {
-                            tabs.forEachIndexed { index, tab ->
-                                NavigationBarItem(
-                                    selected = selectedTab == index,
-                                    onClick = { selectedTab = index },
-                                    icon = { Icon(tab.icon, contentDescription = tab.label) },
-                                    label = { Text(tab.label) }
-                                )
-                            }
-                        }
-                    },
-                    floatingActionButton = {
-                        FloatingActionButton(onClick = { showAdd = true }) {
-                            Icon(Icons.Filled.Add, contentDescription = "Catat baru")
-                        }
-                    }
-                ) { padding ->
-                    Box(modifier = Modifier.padding(padding)) {
-                        when (selectedTab) {
-                            0 -> HomeScreen(viewModel)
-                            1 -> HistoryScreen(viewModel)
-                            2 -> SavingsScreen(viewModel)
-                            else -> BudgetScreen(viewModel)
-                        }
-                    }
-                    if (showAdd) {
-                        AddTransactionDialog(
-                            viewModel = viewModel,
-                            onDismiss = { showAdd = false }
-                        )
-                    }
+                if (!onboardingDone) {
+                    OnboardingScreen(viewModel)
+                } else {
+                    MainScaffold(viewModel)
                 }
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MainScaffold(viewModel: MainViewModel) {
+    var selectedTab by remember { mutableStateOf(0) }
+    var showAdd by remember { mutableStateOf(false) }
+
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("do.it", fontWeight = FontWeight.Bold) }
+            )
+        },
+        bottomBar = {
+            NavigationBar {
+                tabs.forEachIndexed { index, tab ->
+                    NavigationBarItem(
+                        selected = selectedTab == index,
+                        onClick = { selectedTab = index },
+                        icon = { Icon(tab.icon, contentDescription = tab.label) },
+                        label = { Text(tab.label) }
+                    )
+                }
+            }
+        },
+        floatingActionButton = {
+            FloatingActionButton(onClick = { showAdd = true }) {
+                Icon(Icons.Filled.Add, contentDescription = "Catat baru")
+            }
+        }
+    ) { padding ->
+        Box(modifier = Modifier.padding(padding)) {
+            when (selectedTab) {
+                0 -> HomeScreen(viewModel, onOpenSavings = { selectedTab = 2 })
+                1 -> HistoryScreen(viewModel)
+                2 -> SavingsScreen(viewModel)
+                else -> BudgetScreen(viewModel)
+            }
+        }
+        if (showAdd) {
+            QuickAddSheet(
+                viewModel = viewModel,
+                onDismiss = { showAdd = false }
+            )
         }
     }
 }

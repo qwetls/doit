@@ -12,6 +12,21 @@ val TextPrimary = Color(0xFFF5F5F7)
 val TextMuted = Color(0xFF9A9AA5)
 val IncomeGreen = Color(0xFF4ADE80)
 val ExpenseRed = Color(0xFFF87171)
+val WarningAmber = Color(0xFFFBBF24)
+val CategoryBlue = Color(0xFF60A5FA)
+val CategoryGray = Color(0xFF9A9AA5)
+val HeroViolet = Color(0xFF1B1530)
+val CardBorder = Color(0x14FFFFFF)
+
+val categoryColors: Map<String, Color> = mapOf(
+    "BELANJA" to VioletAccent,
+    "MAKAN" to IncomeGreen,
+    "TRANSPORT" to CategoryBlue,
+    "DARURAT" to WarningAmber,
+    "LAIN_KELUAR" to CategoryGray
+)
+
+fun categoryColor(name: String): Color = categoryColors[name] ?: CategoryGray
 
 val DoitColorScheme = darkColorScheme(
     primary = VioletAccent,

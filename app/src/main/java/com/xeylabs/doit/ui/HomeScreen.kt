@@ -285,10 +285,11 @@ fun HomeScreen(viewModel: MainViewModel, onOpenSavings: () -> Unit) {
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        val projectedDate = state.projectedDate
                         val estimateText = when {
                             state.monthsToTarget == 0L -> "Target tercapai!"
-                            state.monthsToTarget != null && state.projectedDate != null ->
-                                "Perkiraan tercapai sekitar " + state.projectedDate.format(
+                            state.monthsToTarget != null && projectedDate != null ->
+                                "Perkiraan tercapai sekitar " + projectedDate.format(
                                     java.time.format.DateTimeFormatter.ofPattern(
                                         "MMM yyyy",
                                         java.util.Locale("in", "ID")

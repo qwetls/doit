@@ -58,6 +58,7 @@ data class HomeUiState(
 private val indonesia = Locale("in", "ID")
 private val dayAbbrev = DateTimeFormatter.ofPattern("EEE", indonesia)
 private val monthAbbrev = DateTimeFormatter.ofPattern("MMM", indonesia)
+private val monthYear = DateTimeFormatter.ofPattern("MMM yyyy", indonesia)
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val db = AppDatabase.get(app)

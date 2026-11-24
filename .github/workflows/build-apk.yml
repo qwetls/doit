@@ -1,0 +1,125 @@
+name: Build and Release do.it APK
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Signed do.it Release APK
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    env:
+      DOIT_KEYSTORE_BASE64: ${{ secrets.DOIT_KEYSTORE_BASE64 }}
+      DOIT_STORE_PASSWORD: ${{ secrets.DOIT_STORE_PASSWORD }}
+      DOIT_KEY_ALIAS: ${{ secrets.DOIT_KEY_ALIAS }}
+      DOIT_KEY_PASSWORD: ${{ secrets.DOIT_KEY_PASSWORD }}
+      DOIT_KEYSTORE_FILE: ${{ github.workspace }}/app/release.keystore
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Validate signing secrets and decode keystore
+        run: |
+          test -n "$DOIT_KEYSTORE_BASE64" || { echo "Missing DOIT_KEYSTORE_BASE64 secret"; exit 1; }
+          test -n "$DOIT_STORE_PASSWORD" || { echo "Missing DOIT_STORE_PASSWORD secret"; exit 1; }
+          test -n "$DOIT_KEY_ALIAS" || { echo "Missing DOIT_KEY_ALIAS secret"; exit 1; }
+          test -n "$DOIT_KEY_PASSWORD" || { echo "Missing DOIT_KEY_PASSWORD secret"; exit 1; }
+          printf '%s' "$DOIT_KEYSTORE_BASE64" | base64 --decode > "$DOIT_KEYSTORE_FILE"
+          test -s "$DOIT_KEYSTORE_FILE"
+
+      - name: Build Release and Debug APKs
+        run: ./gradlew assembleRelease assembleDebug --stacktrace || (echo "=== GRADLE BUILD FAILED ===" && exit 1)
+
+      - name: Name APKs with app version
+        id: apk
+        run: |
+          VERSION_NAME=$(sed -nE 's/^[[:space:]]*versionName[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' app/build.gradle.kts | head -n 1)
+          test -n "$VERSION_NAME" || { echo "Could not read app versionName"; exit 1; }
+          RELEASE_DIR="app/build/outputs/apk/release"
+          DEBUG_DIR="app/build/outputs/apk/debug"
+          RELEASE_APK="${RELEASE_DIR}/doit-v${VERSION_NAME}-release.apk"
+          DEBUG_APK="${DEBUG_DIR}/doit-v${VERSION_NAME}-debug.apk"
+          cp "${RELEASE_DIR}/app-release.apk" "$RELEASE_APK"
+          cp "${DEBUG_DIR}/app-debug.apk" "$DEBUG_APK"
+          echo "version=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "release_path=$RELEASE_APK" >> "$GITHUB_OUTPUT"
+          echo "debug_path=$DEBUG_APK" >> "$GITHUB_OUTPUT"
+
+      - name: Generate SHA-256 checksums
+        run: |
+          sha256sum "${{ steps.apk.outputs.release_path }}" > "${{ steps.apk.outputs.release_path }}.sha256"
+          sha256sum "${{ steps.apk.outputs.debug_path }}" > "${{ steps.apk.outputs.debug_path }}.sha256"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: v${{ steps.apk.outputs.version }}
+          VERSION_NAME: ${{ steps.apk.outputs.version }}
+        run: |
+          cat > RELEASE_NOTES.md <<'EOF'
+          ## do.it v1.0.0 — Money management, pertama rilis
+
+          - **Catat pemasukan dan pengeluaran**:
+            - Jumlah (Rp), kategori, tanggal (default hari ini, bisa digeser), dan catatan singkat. Pemasukan: Gaji dan Lain-lain. Pengeluaran: Belanja harian, Makan, Transport, Darurat, Lain-lain.
+          - **Anggaran bulanan**:
+            - Patokan dari gaji Rp1.000.000: Belanja Rp200.000, Dana darurat Rp100.000, Tabungan laptop Rp700.000. Semua batas bisa diubah di tab Anggaran.
+          - **Beranda**:
+            - Total masuk, keluar, dan sisa bulan ini; pemakaian anggaran Belanja dan Darurat; progres tabungan laptop; dan 5 catatan terakhir.
+          - **Tabungan laptop**:
+            - Target default Rp3.000.000 (bisa diubah). Tabungan dihitung dari total pemasukan dikurangi total pengeluaran selama ini, plus perkiraan bulan tercapai dari rata-rata nabung bersih per bulan.
+          - **Riwayat**:
+            - Semua catatan per bulan, bisa difilter per kategori, dan bisa dihapus.
+          - **Lokal saja, tanpa akun**:
+            - Semua data tersimpan di HP (Room/SQLite). Tidak ada server, tidak ada login, tidak ada biaya.
+          - **Ringan**:
+            - Tanpa pemutar musik dan tanpa library berat — APK rilis hanya beberapa MB.
+          - **Yang belum ada (rencana v2)**:
+            - Shift kerja, muat mobil, ekspor/backup data, dan pengingat harian.
+
+          Published signed release and debug APKs.
+          EOF
+          gh release delete "$RELEASE_TAG" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$RELEASE_TAG" \
+            "${{ steps.apk.outputs.release_path }}" \
+            "${{ steps.apk.outputs.release_path }}.sha256" \
+            "${{ steps.apk.outputs.debug_path }}" \
+            "${{ steps.apk.outputs.debug_path }}.sha256" \
+            --title "do.it $RELEASE_TAG (Money management — first release)" \
+            --notes-file RELEASE_NOTES.md \
+            --latest
+
+      - name: Upload APK build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: doit-${{ steps.apk.outputs.version }}-APKs
+          path: |
+            ${{ steps.apk.outputs.release_path }}
+            ${{ steps.apk.outputs.release_path }}.sha256
+            ${{ steps.apk.outputs.debug_path }}
+            ${{ steps.apk.outputs.debug_path }}.sha256
+          retention-days: 30
+
+      - name: Remove temporary signing keystore
+        if: always()
+        run: rm -f app/release.keystore

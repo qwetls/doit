@@ -43,14 +43,31 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val allTransactions: StateFlow<List<Transaction>> = dao.getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    private data class HomeInputs(
+        val txs: List<Transaction>,
+        val month: YearMonth,
+        val budgetBelanja: Long,
+        val budgetDarurat: Long,
+        val budgetTabungan: Long
+    )
+
     val uiState: StateFlow<HomeUiState> = combine(
-        allTransactions,
-        selectedMonth,
-        settings.budgetBelanja,
-        settings.budgetDarurat,
-        settings.budgetTabungan,
+        combine(
+            allTransactions,
+            selectedMonth,
+            settings.budgetBelanja,
+            settings.budgetDarurat,
+            settings.budgetTabungan
+        ) { txs, month, bBelanja, bDarurat, bTabungan ->
+            HomeInputs(txs, month, bBelanja, bDarurat, bTabungan)
+        },
         settings.savingsTarget
-    ) { txs, month, bBelanja, bDarurat, bTabungan, target ->
+    ) { inputs, target ->
+        val txs = inputs.txs
+        val month = inputs.month
+        val bBelanja = inputs.budgetBelanja
+        val bDarurat = inputs.budgetDarurat
+        val bTabungan = inputs.budgetTabungan
         val inMonth = txs.filter { YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == month }
         val monthIncome = inMonth.filter { it.type == TxnType.INCOME.name }.sumOf { it.amount }
         val monthExpense = inMonth.filter { it.type == TxnType.EXPENSE.name }.sumOf { it.amount }

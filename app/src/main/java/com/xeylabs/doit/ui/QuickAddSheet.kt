@@ -54,10 +54,16 @@ fun QuickAddSheet(
 ) {
     val lastCategoryName by viewModel.lastCategory.collectAsState()
     val recentCategories by viewModel.recentCategories.collectAsState()
+    val wallets by viewModel.wallets.collectAsState()
+    val lastWalletId by viewModel.lastWalletId.collectAsState()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var type by remember { mutableStateOf(TxnType.EXPENSE) }
     var amount by remember { mutableStateOf(0L) }
+    var selectedWalletId by remember { mutableStateOf<Long?>(null) }
+    val effectiveWalletId = selectedWalletId
+        ?: wallets.firstOrNull { it.id == lastWalletId }?.id
+        ?: wallets.firstOrNull()?.id
     val initialCategory = remember(lastCategoryName) {
         val last = lastCategoryName?.let { Category.fromName(it) }
         if (last != null && last.type == TxnType.EXPENSE) last else Category.BELANJA
@@ -147,6 +153,19 @@ fun QuickAddSheet(
                 }
             }
 
+            if (wallets.isNotEmpty()) {
+                Text("Dompet", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(wallets, key = { it.id }) { wallet ->
+                        FilterChip(
+                            selected = effectiveWalletId == wallet.id,
+                            onClick = { selectedWalletId = wallet.id },
+                            label = { Text(wallet.name) }
+                        )
+                    }
+                }
+            }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -186,7 +205,7 @@ fun QuickAddSheet(
                         error = "Masukkan jumlah lebih dari 0"
                         return@Button
                     }
-                    viewModel.addTransaction(type, category, amount, date, note)
+                    viewModel.addTransaction(type, category, amount, date, note, walletId = effectiveWalletId)
                     onDismiss()
                 },
                 modifier = Modifier.fillMaxWidth()

@@ -32,6 +32,10 @@ class SettingsStore(context: Context) {
         MutableStateFlow(prefs.getString(KEY_LAST_CATEGORY, null))
     val lastCategory: StateFlow<String?> = _lastCategory
 
+    private val _lastWalletId =
+        MutableStateFlow(prefs.getLong(KEY_LAST_WALLET_ID, 0L))
+    val lastWalletId: StateFlow<Long> = _lastWalletId
+
     fun setBudgetBelanja(value: Long) = save(KEY_BUDGET_BELANJA, value, _budgetBelanja)
     fun setBudgetDarurat(value: Long) = save(KEY_BUDGET_DARURAT, value, _budgetDarurat)
     fun setBudgetTabungan(value: Long) = save(KEY_BUDGET_TABUNGAN, value, _budgetTabungan)
@@ -48,6 +52,11 @@ class SettingsStore(context: Context) {
         _lastCategory.value = name
     }
 
+    fun setLastWalletId(id: Long) {
+        prefs.edit().putLong(KEY_LAST_WALLET_ID, id).apply()
+        _lastWalletId.value = id
+    }
+
     private fun save(key: String, value: Long, flow: MutableStateFlow<Long>) {
         prefs.edit().putLong(key, value).apply()
         flow.value = value
@@ -61,5 +70,6 @@ class SettingsStore(context: Context) {
         const val KEY_MONTHLY_INCOME = "monthly_income"
         const val KEY_ONBOARDING_DONE = "onboarding_done"
         const val KEY_LAST_CATEGORY = "last_category"
+        const val KEY_LAST_WALLET_ID = "last_wallet_id"
     }
 }

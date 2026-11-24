@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
@@ -30,6 +31,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xeylabs.doit.ui.BudgetScreen
+import com.xeylabs.doit.ui.FinanceScreen
 import com.xeylabs.doit.ui.HistoryScreen
 import com.xeylabs.doit.ui.HomeScreen
 import com.xeylabs.doit.ui.OnboardingScreen
@@ -46,7 +48,8 @@ private val tabs = listOf(
     Tab("Beranda", Icons.Filled.Home),
     Tab("Riwayat", Icons.Filled.List),
     Tab("Tabungan", Icons.Filled.Savings),
-    Tab("Anggaran", Icons.Filled.Wallet)
+    Tab("Anggaran", Icons.Filled.Wallet),
+    Tab("Keuangan", Icons.Filled.AccountBalanceWallet)
 )
 
 class MainActivity : ComponentActivity() {
@@ -105,7 +108,8 @@ private fun MainScaffold(viewModel: MainViewModel, updateViewModel: UpdateViewMo
                 0 -> HomeScreen(viewModel, updateViewModel, onOpenSavings = { selectedTab = 2 })
                 1 -> HistoryScreen(viewModel)
                 2 -> SavingsScreen(viewModel)
-                else -> BudgetScreen(viewModel)
+                3 -> BudgetScreen(viewModel)
+                else -> FinanceScreen(viewModel)
             }
         }
         if (showAdd) {

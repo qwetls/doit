@@ -78,26 +78,26 @@ jobs:
           VERSION_NAME: ${{ steps.apk.outputs.version }}
         run: |
           cat > RELEASE_NOTES.md <<'EOF'
-          ## do.it v1.1.0 — Unicorn-grade MVP: dashboard, insight & widget
+          ## do.it v1.2.0 — Financial app: dompet ganda, gaji & sumber pemasukan, rutin, utang, tagihan, laporan
 
-          - **Dashboard baru**:
-            - Kartu hero saldo bulan ini (masuk, keluar, sisa) dengan angka animasi; grafik batang pengeluaran 7 hari terakhir dan 6 bulan terakhir; donut pengeluaran per kategori dengan legenda; cincin anggaran Belanja, Darurat, dan Tabungan dengan peringatan 80% (kuning) dan 100%+ (merah).
-          - **Insight otomatis**:
-            - Pengeluaran dibanding bulan lalu, kategori terbesar bulan ini, perkiraan sisa hari anggaran, dan proyeksi tanggal tercapai target tabungan — dihitung dari data lokal saja.
-          - **Onboarding (sekali saat pertama buka)**:
-            - Atur pemasukan bulanan, tiga anggaran (default 200rb/100rb/700rb), dan target laptop (default Rp3.000.000). Bisa dilewati dan diubah nanti di tab Anggaran.
-          - **Quick add**:
-            - Bottom sheet dengan keypad kalkulator, kategori terakhir dipakai sebagai default, dan baris kategori yang sering dipakai.
-          - **Riwayat**:
-            - Cari catatan (teks, kategori, jumlah), filter per kategori dan bulan, dan ubah catatan yang sudah ada (sebelumnya hanya bisa hapus).
-          - **Target tabungan lebih dari satu**:
-            - Laptop tetap target utama; tambah target sendiri (nama + target), tambah tabungan manual per target, ubah target, dan hapus target tambahan. Progres dan proyeksi per target.
-          - **Widget layar utama**:
-            - Sisa bulan ini, sisa anggaran, dan progres tabungan — ketuk widget untuk membuka aplikasi.
+          - **Dompet ganda**:
+            - Dompet default Tunai + SeaBank (bisa tambah, ubah nama, hapus); saldo tiap dompet = saldo awal + pemasukan − pengeluaran − transfer keluar + transfer masuk. Pilih dompet saat mencatat (dompet terakhir dipakai jadi default).
+          - **Transfer antar dompet**:
+            - Satu baris tipe Transfer — bukan pemasukan/pengeluaran, jadi tidak mengacaukan laporan arus kas.
+          - **Gaji & pemasukan lain**:
+            - Sumber pemasukan jadi kelas satu: Gaji pokok, Lembur, Sampingan, Lain-lain. Ringkasan per sumber per bulan di Beranda dan di Laporan.
+          - **Transaksi berulang**:
+            - Jadwal bulanan (tanggal 1–31) atau mingguan (hari Senin–Minggu), bisa on/off, ubah, hapus. Dievaluasi tiap aplikasi dibuka — tanggal yang terlewat langsung dibuatkan transaksinya (tanpa WorkManager, tanpa notifikasi).
+          - **Utang & piutang**:
+            - Catat siapa, berapa, arah (kamu meminjam / kamu meminjamkan), bayar sebagian sampai lunas.
+          - **Tagihan & pengingat**:
+            - Tagihan bulanan dengan tanggal jatuh tempo; Beranda menampilkan yang jatuh tempo ≤7 hari atau sudah terlambat. Menandai "Bayar" mencatatnya sebagai pengeluaran di dompet terakhir dipakai.
+          - **Laporan + ekspor CSV**:
+            - Ringkasan arus kas bulanan: total masuk/keluar/bersih, per kategori, per dompet, per sumber pemasukan. Ekspor riwayat bulan berjalan ke CSV lewat share intent (FileProvider).
+          - **Migrasi aman**:
+            - Database naik ke versi 3 dengan migrasi nyata (v1→v3 dan v2→v3): transaksi, target tabungan, dan pengaturan lama dipertahankan. `fallbackToDestructiveMigration` dihapus — upgrade selanjutnya tidak boleh menghapus data lagi.
           - **Tetap ringan dan lokal**:
-            - Grafik digambar sendiri dengan Canvas (tanpa library chart berat); semua data di HP (Room/SQLite); tanpa server, tanpa login, tanpa biaya.
-          - **Catatan migrasi**:
-            - Database naik ke versi 2 dengan target tabungan sebagai tabel baru. Data lama dihapus saat upgrade (fallbackToDestructiveMigration) karena aplikasi baru berumur satu hari.
+            - Semua data di HP (Room/SQLite); tanpa server, tanpa login, tanpa biaya, tanpa library baru yang berat.
 
           Published signed release and debug APKs.
           EOF
@@ -107,7 +107,7 @@ jobs:
             "${{ steps.apk.outputs.release_path }}.sha256" \
             "${{ steps.apk.outputs.debug_path }}" \
             "${{ steps.apk.outputs.debug_path }}.sha256" \
-            --title "do.it $RELEASE_TAG (Unicorn-grade MVP — dashboard, insights & widget)" \
+            --title "do.it $RELEASE_TAG (Financial app — dompet ganda, gaji, rutin, utang, tagihan & laporan)" \
             --notes-file RELEASE_NOTES.md \
             --latest
 

@@ -1,15 +1,25 @@
 package com.xeylabs.doit.viewmodel
 
 import android.app.Application
+import android.content.Intent
+import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.xeylabs.doit.data.AppDatabase
+import com.xeylabs.doit.data.Bill
 import com.xeylabs.doit.data.Category
+import com.xeylabs.doit.data.Debt
+import com.xeylabs.doit.data.DebtDirection
+import com.xeylabs.doit.data.RecurringFrequency
+import com.xeylabs.doit.data.RecurringTransaction
 import com.xeylabs.doit.data.SavingsGoal
 import com.xeylabs.doit.data.SettingsStore
 import com.xeylabs.doit.data.Transaction
 import com.xeylabs.doit.data.TxnType
+import com.xeylabs.doit.data.Wallet
+import com.xeylabs.doit.data.WalletType
 import com.xeylabs.doit.widget.DoitWidgetProvider
+import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -17,6 +27,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -26,6 +37,10 @@ import kotlin.math.ceil
 data class DaySpend(val label: String, val amount: Long)
 data class MonthSpend(val label: String, val amount: Long)
 data class CategorySpend(val category: Category, val amount: Long)
+data class WalletBalance(val wallet: Wallet, val balance: Long)
+data class IncomeSourceSpend(val category: Category, val amount: Long)
+data class WalletMonthSpend(val wallet: Wallet, val income: Long, val expense: Long)
+data class BillDue(val bill: Bill, val dueDate: LocalDate, val overdue: Boolean)
 
 enum class InsightKind { GOOD, WARN, INFO }
 data class Insight(val text: String, val kind: InsightKind)
@@ -52,7 +67,20 @@ data class HomeUiState(
     val prevMonthExpense: Long = 0,
     val prevMonthIncome: Long = 0,
     val insights: List<Insight> = emptyList(),
-    val recent: List<Transaction> = emptyList()
+    val recent: List<Transaction> = emptyList(),
+    val wallets: List<WalletBalance> = emptyList(),
+    val totalBalance: Long = 0,
+    val incomeBySource: List<IncomeSourceSpend> = emptyList(),
+    val dueBills: List<BillDue> = emptyList()
+)
+
+data class ReportUiState(
+    val monthIncome: Long = 0,
+    val monthExpense: Long = 0,
+    val monthNet: Long = 0,
+    val perCategory: List<CategorySpend> = emptyList(),
+    val perWallet: List<WalletMonthSpend> = emptyList(),
+    val perSource: List<IncomeSourceSpend> = emptyList()
 )
 
 private val indonesia = Locale("in", "ID")
@@ -64,6 +92,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val db = AppDatabase.get(app)
     private val dao = db.transactionDao()
     private val goalDao = db.savingsGoalDao()
+    private val walletDao = db.walletDao()
+    private val recurringDao = db.recurringDao()
+    private val debtDao = db.debtDao()
+    private val billDao = db.billDao()
     private val settings = SettingsStore(app)
 
     val selectedMonth = MutableStateFlow(YearMonth.now())
@@ -74,11 +106,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
     val lastCategory: StateFlow<String?> = settings.lastCategory
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    val lastWalletId: StateFlow<Long> = settings.lastWalletId
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
     private val allTransactions: StateFlow<List<Transaction>> = dao.getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val goals: StateFlow<List<SavingsGoal>> = goalDao.getAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val wallets: StateFlow<List<Wallet>> = walletDao.getAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val recurrings: StateFlow<List<RecurringTransaction>> = recurringDao.getAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val debts: StateFlow<List<Debt>> = debtDao.getAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val bills: StateFlow<List<Bill>> = billDao.getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val recentCategories: StateFlow<List<Category>> = allTransactions
@@ -92,6 +138,58 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /** Saldo tiap dompet = saldo awal + pemasukan − pengeluaran − transfer keluar + transfer masuk. */
+    val walletBalances: StateFlow<List<WalletBalance>> = combine(
+        wallets, allTransactions
+    ) { walletList, txs ->
+        computeWalletBalances(walletList, txs)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Pemasukan per sumber (Gaji pokok / Lembur / Sampingan / Lain-lain) di bulan terpilih. */
+    val incomeBySource: StateFlow<List<IncomeSourceSpend>> = combine(
+        allTransactions, selectedMonth
+    ) { txs, month ->
+        computeIncomeBySource(txs, month)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val reportState: StateFlow<ReportUiState> = combine(
+        allTransactions, selectedMonth, wallets
+    ) { txs, month, walletList ->
+        val inMonth = txs.filter { YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == month }
+        val income = inMonth.filter { it.type == TxnType.INCOME.name }.sumOf { it.amount }
+        val expense = inMonth.filter { it.type == TxnType.EXPENSE.name }.sumOf { it.amount }
+        val defaultId = walletList.firstOrNull()?.id
+        ReportUiState(
+            monthIncome = income,
+            monthExpense = expense,
+            monthNet = income - expense,
+            perCategory = Category.forType(TxnType.EXPENSE)
+                .map { category ->
+                    CategorySpend(
+                        category,
+                        inMonth.filter { it.category == category.name }.sumOf { it.amount }
+                    )
+                }
+                .filter { it.amount > 0 }
+                .sortedByDescending { it.amount },
+            perWallet = walletList.map { wallet ->
+                val walletTxs = inMonth.filter { (it.walletId ?: defaultId) == wallet.id }
+                val transferIn = inMonth
+                    .filter { it.type == TxnType.TRANSFER.name && it.transferToWalletId == wallet.id }
+                    .sumOf { it.amount }
+                val transferOut = inMonth
+                    .filter { it.type == TxnType.TRANSFER.name && (it.walletId ?: defaultId) == wallet.id }
+                    .sumOf { it.amount }
+                WalletMonthSpend(
+                    wallet = wallet,
+                    income = walletTxs.filter { it.type == TxnType.INCOME.name }.sumOf { it.amount } + transferIn,
+                    expense = walletTxs.filter { it.type == TxnType.EXPENSE.name }.sumOf { it.amount } + transferOut
+                )
+            },
+            perSource = computeIncomeBySource(txs, month)
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ReportUiState())
+
     init {
         viewModelScope.launch {
             if (goalDao.getAllOnce().isEmpty()) {
@@ -104,6 +202,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 )
             }
+            // Seed dompet default (fresh install; upgrader sudah di-seed oleh migrasi).
+            if (walletDao.getAllOnce().isEmpty()) {
+                walletDao.insert(Wallet(name = "Tunai", type = WalletType.TUNAI.name, initialBalance = 0))
+                walletDao.insert(Wallet(name = "SeaBank", type = WalletType.BANK.name, initialBalance = 0))
+            }
+            evaluateRecurrings()
         }
     }
 
@@ -126,15 +230,68 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             HomeInputs(txs, month, bBelanja, bDarurat, bTabungan)
         },
         goals,
-        settings.monthlyIncome
-    ) { inputs, goals, monthlyIncome ->
-        buildHomeState(inputs, goals, monthlyIncome)
+        settings.monthlyIncome,
+        wallets,
+        bills
+    ) { inputs, goals, monthlyIncome, walletList, billList ->
+        buildHomeState(inputs, goals, monthlyIncome, walletList, billList)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeUiState())
+
+    private fun computeWalletBalances(
+        walletList: List<Wallet>,
+        txs: List<Transaction>
+    ): List<WalletBalance> {
+        val defaultId = walletList.firstOrNull()?.id
+        return walletList.map { wallet ->
+            var balance = wallet.initialBalance
+            txs.forEach { tx ->
+                val effectiveWallet = tx.walletId ?: defaultId
+                when (tx.type) {
+                    TxnType.INCOME.name -> if (effectiveWallet == wallet.id) balance += tx.amount
+                    TxnType.EXPENSE.name -> if (effectiveWallet == wallet.id) balance -= tx.amount
+                    TxnType.TRANSFER.name -> {
+                        if (effectiveWallet == wallet.id) balance -= tx.amount
+                        if (tx.transferToWalletId == wallet.id) balance += tx.amount
+                    }
+                }
+            }
+            WalletBalance(wallet, balance)
+        }
+    }
+
+    private fun computeIncomeBySource(
+        txs: List<Transaction>,
+        month: YearMonth
+    ): List<IncomeSourceSpend> {
+        return txs.filter {
+            it.type == TxnType.INCOME.name &&
+                YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == month
+        }
+            .groupBy { Category.fromName(it.category) }
+            .map { (category, list) -> IncomeSourceSpend(category, list.sumOf { it.amount }) }
+            .sortedByDescending { it.amount }
+    }
+
+    private fun computeDueBills(billList: List<Bill>): List<BillDue> {
+        val today = LocalDate.now()
+        val currentMonthKey = YearMonth.now().toString()
+        val ym = YearMonth.now()
+        return billList.mapNotNull { bill ->
+            if (bill.paidMonth == currentMonthKey) return@mapNotNull null
+            val dueDate = ym.atDay(bill.dueDayOfMonth.coerceIn(1, ym.lengthOfMonth()))
+            val overdue = dueDate.isBefore(today)
+            val dueSoon = !overdue && !dueDate.isAfter(today.plusDays(7))
+            if (!overdue && !dueSoon) return@mapNotNull null
+            BillDue(bill, dueDate, overdue)
+        }.sortedBy { it.dueDate }
+    }
 
     private fun buildHomeState(
         inputs: HomeInputs,
         goals: List<SavingsGoal>,
-        monthlyIncome: Long
+        monthlyIncome: Long,
+        walletList: List<Wallet>,
+        billList: List<Bill>
     ): HomeUiState {
         val txs = inputs.txs
         val month = inputs.month
@@ -212,6 +369,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             projectedDate = projectedDate
         )
 
+        val walletBalanceList = computeWalletBalances(walletList, txs)
+
         return HomeUiState(
             monthIncome = monthIncome,
             monthExpense = monthExpense,
@@ -234,7 +393,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             prevMonthExpense = prevMonthExpense,
             prevMonthIncome = prevMonthIncome,
             insights = insights,
-            recent = txs.take(5)
+            recent = txs.take(5),
+            wallets = walletBalanceList,
+            totalBalance = walletBalanceList.sumOf { it.balance },
+            incomeBySource = computeIncomeBySource(txs, month),
+            dueBills = computeDueBills(billList)
         )
     }
 
@@ -337,18 +500,121 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun addTransaction(type: TxnType, category: Category, amount: Long, date: LocalDate, note: String) {
+    // ---------- Transaksi berulang: dievaluasi tiap kali aplikasi dibuka ----------
+
+    private fun nextDueDate(recurring: RecurringTransaction, after: LocalDate): LocalDate {
+        return when (RecurringFrequency.fromName(recurring.frequency)) {
+            RecurringFrequency.MONTHLY -> {
+                var ym = YearMonth.from(after)
+                var candidate = ym.atDay(recurring.dayOfMonth.coerceIn(1, ym.lengthOfMonth()))
+                if (!candidate.isAfter(after)) {
+                    ym = ym.plusMonths(1)
+                    candidate = ym.atDay(recurring.dayOfMonth.coerceIn(1, ym.lengthOfMonth()))
+                }
+                candidate
+            }
+            RecurringFrequency.WEEKLY -> {
+                val targetDow = DayOfWeek.of(recurring.dayOfWeek.coerceIn(1, 7))
+                var candidate = after.plusDays(1)
+                while (candidate.dayOfWeek != targetDow) candidate = candidate.plusDays(1)
+                candidate
+            }
+        }
+    }
+
+    private suspend fun evaluateRecurrings() {
+        val today = LocalDate.now()
+        var createdAny = false
+        recurringDao.getAllOnce().filter { it.isActive }.forEach { recurring ->
+            var anchor = recurring.lastRunEpochDay?.let { LocalDate.ofEpochDay(it) }
+                ?: LocalDate.ofEpochDay(recurring.createdEpochDay)
+            var lastDue: LocalDate? = null
+            var guard = 0
+            while (guard < 36) {
+                val nextDue = nextDueDate(recurring, anchor)
+                if (nextDue.isAfter(today)) break
+                dao.insert(
+                    Transaction(
+                        type = recurring.type,
+                        category = recurring.category,
+                        amount = recurring.amount,
+                        dateEpochDay = nextDue.toEpochDay(),
+                        note = recurring.name + " · otomatis",
+                        walletId = recurring.walletId
+                    )
+                )
+                lastDue = nextDue
+                anchor = nextDue
+                createdAny = true
+                guard++
+            }
+            if (lastDue != null) {
+                recurringDao.update(recurring.copy(lastRunEpochDay = lastDue.toEpochDay()))
+            }
+        }
+        if (createdAny) DoitWidgetProvider.refresh(getApplication())
+    }
+
+    private suspend fun resolveDefaultWalletId(): Long? {
+        val walletList = walletDao.getAllOnce()
+        if (walletList.isEmpty()) return null
+        val last = settings.lastWalletId.value
+        return if (walletList.any { it.id == last }) last else walletList.first().id
+    }
+
+    fun walletName(id: Long?): String {
+        return wallets.value.firstOrNull { it.id == id }?.name
+            ?: wallets.value.firstOrNull()?.name
+            ?: "Dompet"
+    }
+
+    fun addTransaction(
+        type: TxnType,
+        category: Category,
+        amount: Long,
+        date: LocalDate,
+        note: String,
+        walletId: Long? = null
+    ) {
         viewModelScope.launch {
+            val resolved = walletId ?: resolveDefaultWalletId()
             dao.insert(
                 Transaction(
                     type = type.name,
                     category = category.name,
                     amount = amount,
                     dateEpochDay = date.toEpochDay(),
-                    note = note.trim()
+                    note = note.trim(),
+                    walletId = resolved
                 )
             )
+            if (resolved != null) settings.setLastWalletId(resolved)
             settings.setLastCategory(category.name)
+            DoitWidgetProvider.refresh(getApplication())
+        }
+    }
+
+    /** Transfer antar dompet: BUKAN pemasukan/pengeluaran, satu baris tipe TRANSFER. */
+    fun addTransfer(fromWalletId: Long, toWalletId: Long, amount: Long, date: LocalDate, note: String) {
+        if (fromWalletId == toWalletId || amount <= 0) return
+        viewModelScope.launch {
+            val walletList = walletDao.getAllOnce()
+            val fromName = walletList.firstOrNull { it.id == fromWalletId }?.name ?: ""
+            val toName = walletList.firstOrNull { it.id == toWalletId }?.name ?: ""
+            val fullNote = listOf("$fromName → $toName", note.trim())
+                .filter { it.isNotBlank() }.joinToString(" · ")
+            dao.insert(
+                Transaction(
+                    type = TxnType.TRANSFER.name,
+                    category = Category.TRANSFER.name,
+                    amount = amount,
+                    dateEpochDay = date.toEpochDay(),
+                    note = fullNote,
+                    walletId = fromWalletId,
+                    transferToWalletId = toWalletId
+                )
+            )
+            settings.setLastWalletId(fromWalletId)
             DoitWidgetProvider.refresh(getApplication())
         }
     }
@@ -366,6 +632,175 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             DoitWidgetProvider.refresh(getApplication())
         }
     }
+
+    // ---------- Dompet ----------
+
+    fun addWallet(name: String, type: WalletType, initialBalance: Long) {
+        viewModelScope.launch {
+            walletDao.insert(Wallet(name = name.trim(), type = type.name, initialBalance = initialBalance))
+        }
+    }
+
+    fun updateWallet(wallet: Wallet) {
+        viewModelScope.launch { walletDao.update(wallet) }
+    }
+
+    fun deleteWallet(wallet: Wallet) {
+        viewModelScope.launch {
+            // Dompet terakhir tidak boleh dihapus — transaksi butuh dompet default.
+            if (walletDao.getAllOnce().size <= 1) return@launch
+            walletDao.delete(wallet)
+        }
+    }
+
+    // ---------- Transaksi berulang ----------
+
+    fun addRecurring(recurring: RecurringTransaction) {
+        viewModelScope.launch { recurringDao.insert(recurring) }
+    }
+
+    fun updateRecurring(recurring: RecurringTransaction) {
+        viewModelScope.launch { recurringDao.update(recurring) }
+    }
+
+    fun setRecurringActive(recurring: RecurringTransaction, active: Boolean) {
+        viewModelScope.launch { recurringDao.update(recurring.copy(isActive = active)) }
+    }
+
+    fun deleteRecurring(recurring: RecurringTransaction) {
+        viewModelScope.launch { recurringDao.delete(recurring) }
+    }
+
+    // ---------- Utang & piutang ----------
+
+    fun addDebt(personName: String, amount: Long, direction: DebtDirection, date: LocalDate) {
+        viewModelScope.launch {
+            debtDao.insert(
+                Debt(
+                    personName = personName.trim(),
+                    amount = amount,
+                    direction = direction.name,
+                    paid = 0,
+                    isSettled = false,
+                    dateEpochDay = date.toEpochDay()
+                )
+            )
+        }
+    }
+
+    fun recordDebtPayment(debt: Debt, payment: Long) {
+        if (payment <= 0) return
+        viewModelScope.launch {
+            val newPaid = (debt.paid + payment).coerceAtMost(debt.amount)
+            debtDao.update(
+                debt.copy(paid = newPaid, isSettled = newPaid >= debt.amount)
+            )
+        }
+    }
+
+    fun deleteDebt(debt: Debt) {
+        viewModelScope.launch { debtDao.delete(debt) }
+    }
+
+    // ---------- Tagihan ----------
+
+    fun addBill(name: String, amount: Long, dueDayOfMonth: Int) {
+        viewModelScope.launch {
+            billDao.insert(
+                Bill(
+                    name = name.trim(),
+                    amount = amount,
+                    dueDayOfMonth = dueDayOfMonth.coerceIn(1, 31)
+                )
+            )
+        }
+    }
+
+    fun updateBill(bill: Bill) {
+        viewModelScope.launch { billDao.update(bill) }
+    }
+
+    fun deleteBill(bill: Bill) {
+        viewModelScope.launch { billDao.delete(bill) }
+    }
+
+    /** Tandai tagihan bulan ini lunas + catat sebagai pengeluaran di dompet terakhir dipakai. */
+    fun markBillPaid(bill: Bill) {
+        viewModelScope.launch {
+            val currentMonthKey = YearMonth.now().toString()
+            if (bill.paidMonth == currentMonthKey) return@launch
+            billDao.update(bill.copy(paidMonth = currentMonthKey))
+            val walletId = resolveDefaultWalletId()
+            dao.insert(
+                Transaction(
+                    type = TxnType.EXPENSE.name,
+                    category = Category.LAIN_KELUAR.name,
+                    amount = bill.amount,
+                    dateEpochDay = LocalDate.now().toEpochDay(),
+                    note = "Tagihan: " + bill.name,
+                    walletId = walletId
+                )
+            )
+            DoitWidgetProvider.refresh(getApplication())
+        }
+    }
+
+    // ---------- Laporan + ekspor CSV ----------
+
+    fun exportCsv() {
+        viewModelScope.launch {
+            val month = selectedMonth.value
+            val txs = allTransactions.value
+                .filter { YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == month }
+                .sortedBy { it.dateEpochDay }
+            val walletList = wallets.value
+            fun nameOf(id: Long?): String =
+                walletList.firstOrNull { it.id == id }?.name
+                    ?: walletList.firstOrNull()?.name ?: "Dompet"
+            fun csvEscape(text: String): String = text.replace("\"", "\"\"")
+            val csv = StringBuilder("tanggal,tipe,kategori,dompet,jumlah,catatan\n")
+            txs.forEach { tx ->
+                val typeLabel = when (tx.type) {
+                    TxnType.INCOME.name -> "Pemasukan"
+                    TxnType.EXPENSE.name -> "Pengeluaran"
+                    else -> "Transfer"
+                }
+                val walletLabel = if (tx.type == TxnType.TRANSFER.name) {
+                    nameOf(tx.walletId) + " -> " + nameOf(tx.transferToWalletId)
+                } else {
+                    nameOf(tx.walletId)
+                }
+                csv.append(LocalDate.ofEpochDay(tx.dateEpochDay))
+                    .append(',').append(typeLabel)
+                    .append(',').append(Category.fromName(tx.category).label)
+                    .append(',').append(walletLabel)
+                    .append(',').append(tx.amount)
+                    .append(",\"").append(csvEscape(tx.note)).append("\"\n")
+            }
+            val app = getApplication<Application>()
+            val dir = File(app.cacheDir, "exports").apply { mkdirs() }
+            val fileName = "doit-" + month.toString() + ".csv"
+            val file = File(dir, fileName)
+            file.writeText(csv.toString())
+            val uri = FileProvider.getUriForFile(app, "com.xeylabs.doit.fileprovider", file)
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/csv"
+                putExtra(Intent.EXTRA_SUBJECT, "do.it — transaksi " + formatMonthCsv(month))
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            val chooser = Intent.createChooser(shareIntent, "Bagikan CSV").apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            app.startActivity(chooser)
+        }
+    }
+
+    private fun formatMonthCsv(month: YearMonth): String {
+        return month.format(DateTimeFormatter.ofPattern("MMMM yyyy", indonesia))
+    }
+
+    // ---------- Target tabungan (v1.1, tidak berubah) ----------
 
     fun addGoal(name: String, target: Long) {
         viewModelScope.launch {

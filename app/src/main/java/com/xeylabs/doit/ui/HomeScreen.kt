@@ -44,6 +44,8 @@ import com.xeylabs.doit.ui.theme.categoryColor
 import com.xeylabs.doit.viewmodel.InsightKind
 import com.xeylabs.doit.viewmodel.MainViewModel
 import com.xeylabs.doit.viewmodel.UpdateViewModel
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 
 @Composable
 fun HomeScreen(
@@ -101,6 +103,106 @@ fun HomeScreen(
                 HeroMini("Masuk", state.monthIncome, IncomeGreen)
                 HeroMini("Keluar", state.monthExpense, ExpenseRed)
                 HeroMini("Pemasukan/bln", state.monthlyIncome, MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+
+        if (state.wallets.isNotEmpty()) {
+            DoitCard {
+                SectionTitle("Dompet")
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Total saldo",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        formatRupiah(state.totalBalance),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                state.wallets.forEach { walletBalance ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            walletBalance.wallet.name,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            formatRupiah(walletBalance.balance),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        }
+
+        if (state.incomeBySource.isNotEmpty()) {
+            DoitCard {
+                SectionTitle("Pemasukan per sumber bulan ini")
+                Spacer(modifier = Modifier.height(8.dp))
+                state.incomeBySource.forEach { source ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(source.category.label, style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            formatRupiah(source.amount),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = IncomeGreen
+                        )
+                    }
+                }
+            }
+        }
+
+        if (state.dueBills.isNotEmpty()) {
+            DoitCard {
+                SectionTitle("Tagihan segera jatuh tempo")
+                Spacer(modifier = Modifier.height(8.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    state.dueBills.forEach { due ->
+                        val today = LocalDate.now()
+                        val daysLeft = ChronoUnit.DAYS.between(today, due.dueDate)
+                        val statusText = when {
+                            due.overdue -> "Terlambat ${-daysLeft} hari"
+                            daysLeft == 0L -> "Jatuh tempo hari ini"
+                            else -> "Jatuh tempo dalam $daysLeft hari"
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    due.bill.name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    formatRupiah(due.bill.amount) + " · " + statusText,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (due.overdue) ExpenseRed else WarningAmber
+                                )
+                            }
+                            TextButton(onClick = { viewModel.markBillPaid(due.bill) }) {
+                                Text("Bayar")
+                            }
+                        }
+                    }
+                }
             }
         }
 

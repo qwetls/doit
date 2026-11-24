@@ -30,8 +30,8 @@ import com.xeylabs.doit.viewmodel.MonthSpend
 
 data class BarEntry(val label: String, val amount: Long)
 
-fun List<DaySpend>.toBars(): List<BarEntry> = map { BarEntry(it.label, it.amount) }
-fun List<MonthSpend>.toBars(): List<BarEntry> = map { BarEntry(it.label, it.amount) }
+fun List<DaySpend>.toDayBars(): List<BarEntry> = map { BarEntry(it.label, it.amount) }
+fun List<MonthSpend>.toMonthBars(): List<BarEntry> = map { BarEntry(it.label, it.amount) }
 
 @Composable
 fun BarChart(

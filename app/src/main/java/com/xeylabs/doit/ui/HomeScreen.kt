@@ -148,9 +148,9 @@ fun HomeScreen(viewModel: MainViewModel, onOpenSavings: () -> Unit) {
             }
             Spacer(modifier = Modifier.height(12.dp))
             if (chartRange == 0) {
-                BarChart(bars = state.last7Days.toBars())
+                BarChart(bars = state.last7Days.toDayBars())
             } else {
-                BarChart(bars = state.monthlyBars.toBars())
+                BarChart(bars = state.monthlyBars.toMonthBars())
             }
             Spacer(modifier = Modifier.height(8.dp))
             val chartTotal = if (chartRange == 0) {

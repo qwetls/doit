@@ -2,6 +2,11 @@
 
 Aplikasi pencatat uang yang ringan — money management untuk gaji Rp1.000.000/bulan.
 
+**v1.5.0 — Desain minimalis (Beranda hanya tiga jawaban):**
+- Beranda tinggal: total saldo besar + Masuk / Keluar / Sisa bulan ini, tombol besar **+ Pemasukan** / **+ Pengeluaran**, satu baris tipis progres tabungan laptop ("RpX dari Rp3jt", tanpa cincin, tanpa tanggal proyeksi), dan 5 transaksi terakhir (ketuk "Lihat semua" → Riwayat).
+- Yang pindah, bukan dihapus: grafik batang 7 hari / 6 bulan dan donut per kategori pindah ke Laporan (dengan pilihan 7 hari / 6 bulan); cincin anggaran sudah tampil sebagai baris teks di Rencana; kartu Perhatian jadi satu baris kecil di bawah saldo, hanya muncul kalau ada tagihan jatuh tempo ≤7 hari / terlambat; kartu ringkasan dompet di Beranda dihapus (saldo per dompet tetap di tab Dompet). Insight otomatis pindah ke Laporan.
+- Tidak berubah: 5 tab tetap, warna violet tetap, data lokal tetap, tanpa login, tanpa server. Tanpa perubahan database (skema tetap v4, tanpa migrasi).
+
 **v1.4.0 — Desain baru ala app bank + Rp & Dollar:**
 - Beranda ala app bank: avatar profil paling kiri (ketuk → Profil & Pengaturan), sapaan "Halo, Adrien", total saldo besar dengan animasi, baris Masuk / Keluar / Sisa bulan ini, tombol besar **+ Pemasukan** (hijau) / **+ Pengeluaran** (merah) yang membuka sheet dengan jenis yang benar. Pemasukan universal (sumber tetap Gaji pokok, Lembur, Sampingan, Lain-lain); catatan opsional ada di pemasukan dan pengeluaran.
 - Dompet multi + 2 mata uang saja (Rp & Dollar): tiap dompet punya mata uang; dompet lama default Rp. Ringkasan Tunai · E-money · Bank per mata uang, tidak dicampur. Transfer menampilkan arah eksplisit ("Tunai → GoPay"); transfer Rp ↔ $ tanpa kurs otomatis — jumlah diterima diisi manual.

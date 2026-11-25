@@ -18,10 +18,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.xeylabs.doit.data.Category
 import com.xeylabs.doit.data.Currency
+import com.xeylabs.doit.data.CustomCategory
 import com.xeylabs.doit.data.Transaction
 import com.xeylabs.doit.data.TxnType
+import com.xeylabs.doit.data.resolveCategoryRef
 import com.xeylabs.doit.ui.theme.ExpenseRed
 import com.xeylabs.doit.ui.theme.IncomeGreen
 
@@ -32,17 +33,18 @@ fun TransactionRow(
     onDelete: (() -> Unit)? = null,
     currency: Currency = Currency.IDR,
     walletName: String? = null,
+    customCategories: List<CustomCategory> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     val isIncome = tx.type == TxnType.INCOME.name
     val isTransfer = tx.type == TxnType.TRANSFER.name
-    val category = Category.fromName(tx.category)
+    val category = resolveCategoryRef(tx.category, customCategories)
     Row(
         modifier = modifier.fillMaxWidth().padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         CategoryIconTile(
-            category = category,
+            ref = category,
             tint = when {
                 isTransfer -> MaterialTheme.colorScheme.onSurfaceVariant
                 isIncome -> IncomeGreen

@@ -12,11 +12,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -157,6 +155,29 @@ fun categoryIcon(category: DoitCategory): ImageVector {
     }
 }
 
+fun customCategoryIcon(iconKey: String): ImageVector {
+    return when (iconKey) {
+        "shopping" -> Icons.Filled.ShoppingBag
+        "restaurant" -> Icons.Filled.Restaurant
+        "car" -> Icons.Filled.DirectionsCar
+        "health" -> Icons.Filled.HealthAndSafety
+        "work" -> Icons.Filled.Work
+        "schedule" -> Icons.Filled.Schedule
+        "payments" -> Icons.Filled.Payments
+        "bank" -> Icons.Filled.AccountBalance
+        "phone" -> Icons.Filled.PhoneAndroid
+        else -> Icons.Filled.Category
+    }
+}
+
+fun categoryRefIcon(ref: com.xeylabs.doit.data.CategoryRef): ImageVector {
+    if (com.xeylabs.doit.data.customCategoryId(ref.key) != null) return customCategoryIcon(ref.iconKey)
+    return DoitCategory.entries.firstOrNull { it.name == ref.iconKey }?.let { categoryIcon(it) }
+        ?: Icons.Filled.Category
+}
+
+fun categoryRefColor(ref: com.xeylabs.doit.data.CategoryRef): Color = Color(ref.colorHex)
+
 fun walletTypeIcon(type: WalletType): ImageVector {
     return when (type) {
         WalletType.TUNAI -> Icons.Filled.Payments
@@ -175,6 +196,23 @@ fun CategoryIconTile(category: DoitCategory, size: Int = 40, tint: Color? = null
     ) {
         Icon(
             imageVector = categoryIcon(category),
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size((size * 0.5).dp)
+        )
+    }
+}
+
+@Composable
+fun CategoryIconTile(ref: com.xeylabs.doit.data.CategoryRef, size: Int = 40, tint: Color? = null) {
+    val color = tint ?: categoryRefColor(ref)
+    Box(
+        modifier = Modifier.size(size.dp).clip(RoundedCornerShape(12.dp))
+            .background(color.copy(alpha = 0.15f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = categoryRefIcon(ref),
             contentDescription = null,
             tint = color,
             modifier = Modifier.size((size * 0.5).dp)

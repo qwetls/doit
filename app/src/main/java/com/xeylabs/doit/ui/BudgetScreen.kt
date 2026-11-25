@@ -28,7 +28,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import com.xeylabs.doit.data.BudgetPosition
 import com.xeylabs.doit.data.Category
+import com.xeylabs.doit.data.CategoryRef
+import com.xeylabs.doit.data.CustomCategory
 import com.xeylabs.doit.data.TxnType
+import com.xeylabs.doit.data.builtinCategoryRef
+import com.xeylabs.doit.data.categoryRefsForType
+import com.xeylabs.doit.data.resolveCategoryRef
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -50,6 +55,7 @@ import com.xeylabs.doit.viewmodel.MainViewModel
 fun BudgetSection(viewModel: MainViewModel) {
     val state by viewModel.uiState.collectAsState()
     val positions by viewModel.budgetPositions.collectAsState()
+    val customCategories by viewModel.customCategories.collectAsState()
     val monthSpent by viewModel.monthCategorySpent.collectAsState()
     var incomeText by remember(state.monthlyIncome) { mutableStateOf(state.monthlyIncome.toString()) }
     var belanjaText by remember(state.budgetBelanja) { mutableStateOf(state.budgetBelanja.toString()) }
@@ -64,7 +70,7 @@ fun BudgetSection(viewModel: MainViewModel) {
     val customTotal = positions.sumOf { it.limitAmount }
     val customSpent = positions
         .filter { it.category != Category.BELANJA.name && it.category != Category.DARURAT.name }
-        .sumOf { monthSpent[Category.fromName(it.category)] ?: 0L }
+        .sumOf { monthSpent[it.category] ?: 0L }
     val totalBudget = state.budgetBelanja + state.budgetDarurat + state.budgetTabungan + customTotal
     val totalUsed = state.belanjaSpent + state.daruratSpent + savedThisMonth + customSpent
     val totalRemaining = (totalBudget - totalUsed).coerceAtLeast(0)
@@ -138,29 +144,29 @@ fun BudgetSection(viewModel: MainViewModel) {
                     spent = state.belanjaSpent,
                     budget = state.budgetBelanja,
                     isSavings = false,
-                    category = Category.BELANJA
+                    category = builtinCategoryRef(Category.BELANJA)
                 )
                 UsageRow(
                     label = "Dana darurat",
                     spent = state.daruratSpent,
                     budget = state.budgetDarurat,
                     isSavings = false,
-                    category = Category.DARURAT
+                    category = builtinCategoryRef(Category.DARURAT)
                 )
                 UsageRow(
                     label = "Tabungan (terkumpul bulan ini)",
                     spent = savedThisMonth,
                     budget = state.budgetTabungan,
                     isSavings = true,
-                    category = Category.LAIN_KELUAR
+                    category = builtinCategoryRef(Category.LAIN_KELUAR)
                 )
                 positions.forEach { position ->
                     UsageRow(
                         label = position.name,
-                        spent = monthSpent[Category.fromName(position.category)] ?: 0L,
+                        spent = monthSpent[position.category] ?: 0L,
                         budget = position.limitAmount,
                         isSavings = false,
-                        category = Category.fromName(position.category),
+                        category = resolveCategoryRef(position.category, customCategories),
                         onEdit = { positionToEdit = position },
                         onDelete = { positionToDelete = position }
                     )
@@ -213,9 +219,10 @@ fun BudgetSection(viewModel: MainViewModel) {
         if (showAddPosition) {
             BudgetPositionEditDialog(
                 initial = null,
+                customCategories = customCategories,
                 onDismiss = { showAddPosition = false },
-                onSave = { name, category, limit ->
-                    viewModel.addBudgetPosition(name, category, limit)
+                onSave = { name, categoryKey, limit ->
+                    viewModel.addBudgetPosition(name, categoryKey, limit)
                     showAddPosition = false
                 }
             )
@@ -224,10 +231,11 @@ fun BudgetSection(viewModel: MainViewModel) {
         if (editingPosition != null) {
             BudgetPositionEditDialog(
                 initial = editingPosition,
+                customCategories = customCategories,
                 onDismiss = { positionToEdit = null },
-                onSave = { name, category, limit ->
+                onSave = { name, categoryKey, limit ->
                     viewModel.updateBudgetPosition(
-                        editingPosition.copy(name = name, category = category.name, limitAmount = limit)
+                        editingPosition.copy(name = name, category = categoryKey, limitAmount = limit)
                     )
                     positionToEdit = null
                 }
@@ -261,7 +269,7 @@ private fun UsageRow(
     spent: Long,
     budget: Long,
     isSavings: Boolean,
-    category: Category,
+    category: CategoryRef,
     onEdit: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
@@ -291,7 +299,7 @@ private fun UsageRow(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
             ) {
-                CategoryIconTile(category = category, size = 40)
+                CategoryIconTile(ref = category, size = 40)
                 Column(modifier = Modifier.padding(start = 12.dp)) {
                     Text(label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Text(
@@ -361,11 +369,17 @@ private fun BudgetField(label: String, value: String, onValueChange: (String) ->
 @Composable
 private fun BudgetPositionEditDialog(
     initial: BudgetPosition?,
+    customCategories: List<CustomCategory>,
     onDismiss: () -> Unit,
-    onSave: (name: String, category: Category, limit: Long) -> Unit
+    onSave: (name: String, categoryKey: String, limit: Long) -> Unit
 ) {
     var name by remember { mutableStateOf(initial?.name ?: "") }
-    var category by remember { mutableStateOf(initial?.let { Category.fromName(it.category) } ?: Category.MAKAN) }
+    var category by remember {
+        mutableStateOf(
+            initial?.let { resolveCategoryRef(it.category, customCategories) }
+                ?: builtinCategoryRef(Category.MAKAN)
+        )
+    }
     var limitText by remember { mutableStateOf(if (initial != null) initial.limitAmount.toString() else "") }
     var error by remember { mutableStateOf("") }
 
@@ -383,7 +397,7 @@ private fun BudgetPositionEditDialog(
                 )
                 Text("Kategori", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(Category.forType(TxnType.EXPENSE), key = { it.name }) { option ->
+                    items(categoryRefsForType(TxnType.EXPENSE, customCategories), key = { it.key }) { option ->
                         FilterChip(
                             selected = category == option,
                             onClick = { category = option },
@@ -411,7 +425,7 @@ private fun BudgetPositionEditDialog(
                     error = "Isi nama dan batas yang benar"
                     return@Button
                 }
-                onSave(name.trim(), category, limit)
+                onSave(name.trim(), category.key, limit)
             }) { Text("Simpan") }
         },
         dismissButton = {

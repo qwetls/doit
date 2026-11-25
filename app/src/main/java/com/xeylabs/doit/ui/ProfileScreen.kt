@@ -1,6 +1,9 @@
 package com.xeylabs.doit.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,14 +19,19 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -36,12 +44,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.xeylabs.doit.BuildConfig
 import com.xeylabs.doit.DoitTab
 import com.xeylabs.doit.data.Currency
+import com.xeylabs.doit.ui.theme.ExpenseRed
 import com.xeylabs.doit.ui.theme.HeroEmerald
 import com.xeylabs.doit.viewmodel.MainViewModel
 import com.xeylabs.doit.viewmodel.UpdateViewModel
@@ -63,12 +74,35 @@ fun ProfileScreen(
     val wallets by viewModel.wallets.collectAsState()
     val lastWalletId by viewModel.lastWalletId.collectAsState()
     val monthlyIncome by viewModel.uiState.collectAsState()
+    val transactionCount by viewModel.transactionCount.collectAsState()
+    val recurrings by viewModel.recurrings.collectAsState()
+    val debts by viewModel.debts.collectAsState()
+    val bills by viewModel.bills.collectAsState()
+    val budgetPositions by viewModel.budgetPositions.collectAsState()
+    val customCategories by viewModel.customCategories.collectAsState()
+    val pendingRestore by viewModel.pendingRestore.collectAsState()
+    val backupMessage by viewModel.backupMessage.collectAsState()
+    val context = LocalContext.current
 
     var nameText by remember(displayName) { mutableStateOf(displayName) }
     var incomeText by remember(monthlyIncome.monthlyIncome) {
         mutableStateOf(monthlyIncome.monthlyIncome.toString())
     }
     var savedNote by remember { mutableStateOf("") }
+    var showResetStep1 by remember { mutableStateOf(false) }
+    var showResetStep2 by remember { mutableStateOf(false) }
+    var resetDoneNote by remember { mutableStateOf("") }
+
+    val pickBackup = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            val text = try {
+                context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+            } catch (e: Exception) {
+                null
+            }
+            viewModel.prepareRestore(text)
+        }
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -224,6 +258,158 @@ fun ProfileScreen(
 
         UpdateCard(updateViewModel)
 
+        CategoryManagerSection(viewModel)
+
+        DoitCard {
+            SectionTitle("Cadangan & pulihkan")
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "Simpan semua data (transaksi, dompet, anggaran, target, utang, tagihan, kategori) ke satu file JSON, lalu pulihkan kapan saja — misalnya sebelum reset atau pindah HP.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = { viewModel.exportBackup() },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Buat cadangan (JSON)")
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = { pickBackup.launch("application/json") },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Pulihkan dari cadangan")
+            }
+            val message = backupMessage
+            if (message != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                TextButton(onClick = { viewModel.clearBackupMessage() }) {
+                    Text("Tutup")
+                }
+            }
+        }
+
+        DoitCard(
+            modifier = Modifier.border(1.dp, ExpenseRed.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Filled.Warning,
+                    contentDescription = null,
+                    tint = ExpenseRed,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                SectionTitle("Zona berbahaya")
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "Hapus SEMUA data di aplikasi ini dan kembali seperti baru: transaksi, dompet, anggaran, target tabungan, utang, tagihan, kategori kustom, dan foto struk. Tindakan ini tidak bisa dibatalkan.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = { showResetStep1 = true },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = ExpenseRed)
+            ) {
+                Text("Reset Semua Data")
+            }
+            if (resetDoneNote.isNotBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    resetDoneNote,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
         Spacer(modifier = Modifier.height(96.dp))
+    }
+
+    if (showResetStep1) {
+        AlertDialog(
+            onDismissRequest = { showResetStep1 = false },
+            title = { Text("Reset semua data?") },
+            text = {
+                Text(
+                    "Yang akan dihapus:\n" +
+                        "· $transactionCount transaksi\n" +
+                        "· ${wallets.size} dompet\n" +
+                        "· ${monthlyIncome.goals.size} target tabungan\n" +
+                        "· ${recurrings.size} transaksi berulang\n" +
+                        "· ${debts.size} utang/piutang\n" +
+                        "· ${bills.size} tagihan\n" +
+                        "· ${budgetPositions.size} pos anggaran\n" +
+                        "· ${customCategories.size} kategori kustom\n" +
+                        "· Semua foto struk\n" +
+                        "· Semua pengaturan kembali ke awal\n\n" +
+                        "Disarankan ekspor cadangan dulu sebelum menghapus."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showResetStep1 = false; showResetStep2 = true }) {
+                    Text("Lanjut hapus", color = ExpenseRed)
+                }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { viewModel.exportBackup(); showResetStep1 = false }) {
+                        Text("Ekspor cadangan dulu")
+                    }
+                    TextButton(onClick = { showResetStep1 = false }) { Text("Batal") }
+                }
+            }
+        )
+    }
+    if (showResetStep2) {
+        AlertDialog(
+            onDismissRequest = { showResetStep2 = false },
+            title = { Text("Hapus SEMUA data?") },
+            text = { Text("Ini tidak bisa dibatalkan. Semua catatan, dompet, anggaran, target, utang, tagihan, dan foto struk akan hilang permanen.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.resetAllData()
+                        showResetStep2 = false
+                        resetDoneNote = "Semua data sudah dihapus — aplikasi kembali seperti baru."
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ExpenseRed,
+                        contentColor = Color.White
+                    )
+                ) { Text("Ya, hapus semuanya") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetStep2 = false }) { Text("Batal") }
+            }
+        )
+    }
+    val restore = pendingRestore
+    if (restore != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.cancelRestore() },
+            title = { Text("Pulihkan cadangan?") },
+            text = {
+                Text(
+                    restore.summary + "\n\nSemua data saat ini akan DIGANTI dengan isi cadangan. Foto struk lama tidak ikut dipulihkan — hanya catatannya."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.confirmRestore() }) { Text("Pulihkan") }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.cancelRestore() }) { Text("Batal") }
+            }
+        )
     }
 }

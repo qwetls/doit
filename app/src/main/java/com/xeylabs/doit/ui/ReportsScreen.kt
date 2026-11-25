@@ -60,7 +60,6 @@ import com.xeylabs.doit.ui.theme.IncomeGreen
 import com.xeylabs.doit.ui.theme.OutflowStrong
 import com.xeylabs.doit.ui.theme.SurfaceHighest
 import com.xeylabs.doit.ui.theme.WarningAmber
-import com.xeylabs.doit.ui.theme.categoryColor
 import com.xeylabs.doit.viewmodel.MainViewModel
 import com.xeylabs.doit.viewmodel.ReportRange
 
@@ -267,7 +266,7 @@ fun ReportsScreen(viewModel: MainViewModel, onNavigate: (DoitTab) -> Unit) {
                         val pct = if (report.monthExpense > 0) (item.amount * 100 / report.monthExpense).toInt() else 0
                         StatusPill(
                             text = item.category.label + " ($pct%)",
-                            color = categoryColor(item.category.name),
+                            color = Color(item.category.colorHex),
                             modifier = Modifier.padding(end = 6.dp)
                         )
                     }
@@ -376,7 +375,7 @@ fun ReportsScreen(viewModel: MainViewModel, onNavigate: (DoitTab) -> Unit) {
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    CategoryIconTile(category = item.category)
+                                    CategoryIconTile(ref = item.category)
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Column {
                                         Text(
@@ -400,7 +399,7 @@ fun ReportsScreen(viewModel: MainViewModel, onNavigate: (DoitTab) -> Unit) {
                             LinearProgressIndicator(
                                 progress = { (pct / 100f).coerceIn(0f, 1f) },
                                 modifier = Modifier.fillMaxWidth().height(6.dp),
-                                color = categoryColor(item.category.name)
+                                color = Color(item.category.colorHex)
                             )
                         }
                     }

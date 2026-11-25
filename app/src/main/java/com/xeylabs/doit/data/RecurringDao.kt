@@ -23,4 +23,13 @@ interface RecurringDao {
 
     @Delete
     suspend fun delete(recurring: RecurringTransaction)
+
+    @Query("DELETE FROM recurring_transactions")
+    suspend fun deleteAll()
+
+    @Query("UPDATE recurring_transactions SET category = :newKey WHERE category = :oldKey")
+    suspend fun updateCategory(oldKey: String, newKey: String)
+
+    @Query("UPDATE recurring_transactions SET walletId = :newId WHERE walletId = :oldId")
+    suspend fun updateWalletId(oldId: Long, newId: Long)
 }

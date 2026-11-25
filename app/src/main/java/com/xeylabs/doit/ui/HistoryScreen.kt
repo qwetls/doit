@@ -32,6 +32,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.xeylabs.doit.data.Category
 import com.xeylabs.doit.data.Transaction
+import com.xeylabs.doit.data.TxnType
+import com.xeylabs.doit.data.builtinCategoryRef
+import com.xeylabs.doit.data.categoryRefsForType
 import com.xeylabs.doit.viewmodel.MainViewModel
 
 @Composable
@@ -41,8 +44,12 @@ fun HistoryScreen(viewModel: MainViewModel, onBack: () -> Unit) {
     val selectedCategory by viewModel.historyCategory.collectAsState()
     val selectedWalletId by viewModel.historyWalletId.collectAsState()
     val wallets by viewModel.wallets.collectAsState()
+    val customCategories by viewModel.customCategories.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     var editingTx by remember { mutableStateOf<Transaction?>(null) }
+    val allCategoryRefs = categoryRefsForType(TxnType.EXPENSE, customCategories) +
+        categoryRefsForType(TxnType.INCOME, customCategories) +
+        listOf(builtinCategoryRef(Category.TRANSFER))
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -101,11 +108,11 @@ fun HistoryScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                     label = { Text("Semua") }
                 )
             }
-            items(Category.entries) { category ->
+            items(allCategoryRefs, key = { it.key }) { ref ->
                 FilterChip(
-                    selected = selectedCategory == category,
-                    onClick = { viewModel.setHistoryCategory(category) },
-                    label = { Text(category.label) }
+                    selected = selectedCategory == ref.key,
+                    onClick = { viewModel.setHistoryCategory(ref.key) },
+                    label = { Text(ref.label) }
                 )
             }
         }
@@ -140,7 +147,8 @@ fun HistoryScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                             onEdit = { editingTx = tx },
                             onDelete = { viewModel.deleteTransaction(tx) },
                             currency = viewModel.walletCurrency(tx.walletId),
-                            walletName = viewModel.walletName(tx.walletId)
+                            walletName = viewModel.walletName(tx.walletId),
+                            customCategories = customCategories
                         )
                     }
                 }

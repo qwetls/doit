@@ -78,15 +78,14 @@ jobs:
           VERSION_NAME: ${{ steps.apk.outputs.version }}
         run: |
           cat > RELEASE_NOTES.md <<'EOF'
-          ## do.it v1.7.0 — Samakan persis fitur + UI contoh FluxCash
+          ## do.it v1.8.0 — Kategori kustom, cadangan & pulihkan, reset semua data
 
-          Melengkapi 5 celah dari v1.6.0 supaya fitur dan UI sama persis dengan contoh:
-          - **Lampiran Struk foto (Catat Transaksi):** seksi "Lampiran Struk Fisik / QR — Opsional" + tombol "Unggah Foto Struk" + pratinjau thumbnail; foto tersimpan di penyimpanan internal app dan tampil juga saat ubah transaksi; file ikut terhapus saat transaksinya dihapus.
-          - **+ Tambah Pos Anggaran (Anggaran):** pos anggaran sendiri di bawah 3 pos tetap (Belanja/Darurat/Tabungan) — tambah/ubah/hapus, lengkap dengan ikon kategori, sisa, progres, % + status. Total kartu Sisa Anggaran Bulanan ikut menghitung pos tambahan.
-          - **Unduh Laporan Arus Kas (PDF) (Analisis):** tombol baru yang membuat PDF asli (periode, pemasukan/pengeluaran/arus kas bersih, distribusi + kategori terbesar, jumlah transaksi) lalu dibagikan lewat FileProvider. Ekspor CSV tetap ada.
-          - **Pilih rentang tanggal sendiri (Analisis):** tombol kalender di samping filter membuka pemilih rentang tanggal; laporan, donut, dan insight mengikuti rentang kustom.
-          - **Kartu Smart Insights AI (Analisis):** judul + label efisiensi + teks berisi persen nyata dari data (perubahan pengeluaran vs periode sebelumnya, tingkat tabungan). Isi tetap dihitung dari catatanmu — bukan AI sungguhan.
-          - Migrasi aman ke database v5 (kolom struk + tabel pos anggaran) — data lama dipertahankan. Pill "Alokasi Kas Otomatis" dari contoh sengaja tidak dibuat karena tidak ada perilaku yang jelas di baliknya.
+          Ronde kelengkapan — semua yang selama ini kurang, ditambah sekaligus:
+          - **Reset Semua Data (Akun → Zona berbahaya):** dua kali konfirmasi; menghapus semua transaksi, dompet, anggaran, target, utang, tagihan, kategori kustom, foto struk, dan mengembalikan pengaturan ke awal. Dialog pertama menawarkan "Ekspor cadangan dulu" sebelum menghapus. Setelah reset, dompet Tunai + SeaBank dan target Laptop dibuat ulang.
+          - **Kategori kustom (Akun → Kategori Saya):** buat kategori sendiri (nama, jenis pemasukan/pengeluaran, ikon, warna) — muncul di grid Catat Transaksi (tombol "+ Kategori"), laporan/donut, filter riwayat, pos anggaran, dan jadwal rutin. Menghapus kategori yang dipakai memindahkan transaksinya ke "Lain-lain", tidak pernah menggantung.
+          - **Cadangan & Pulihkan (Akun):** ekspor semua data ke satu file JSON (dibagikan lewat FileProvider), pulihkan dari file .json dengan dialog konfirmasi berisi isi cadangannya. Validasi format sebelum dipulihkan; data lama diganti dalam satu transaksi database.
+          - **Pelengkap kecil:** hapus dompet kini benar-benar memindahkan transaksinya ke dompet pertama (sebelumnya klaim di dialog tidak sesuai kode), utang/piutang kini bisa diubah (sebelumnya hanya tambah/bayar/hapus).
+          - Migrasi aman ke database v6 (tabel kategori kustom) — data lama dipertahankan.
 
           Published signed release and debug APKs.
           EOF
@@ -96,7 +95,7 @@ jobs:
             "${{ steps.apk.outputs.release_path }}.sha256" \
             "${{ steps.apk.outputs.debug_path }}" \
             "${{ steps.apk.outputs.debug_path }}.sha256" \
-            --title "do.it $RELEASE_TAG (Samakan persis fitur + UI FluxCash)" \
+            --title "do.it $RELEASE_TAG (Kategori kustom, cadangan & pulihkan, reset semua data)" \
             --notes-file RELEASE_NOTES.md \
             --latest
 

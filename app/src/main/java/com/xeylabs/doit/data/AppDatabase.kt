@@ -15,9 +15,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         RecurringTransaction::class,
         Debt::class,
         Bill::class,
-        BudgetPosition::class
+        BudgetPosition::class,
+        CustomCategory::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -28,6 +29,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun debtDao(): DebtDao
     abstract fun billDao(): BillDao
     abstract fun budgetPositionDao(): BudgetPositionDao
+    abstract fun customCategoryDao(): CustomCategoryDao
 
     companion object {
         private const val CREATE_WALLETS =
@@ -133,6 +135,19 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS custom_categories (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "name TEXT NOT NULL, " +
+                        "type TEXT NOT NULL, " +
+                        "iconKey TEXT NOT NULL, " +
+                        "colorHex INTEGER NOT NULL)"
+                )
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -142,7 +157,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "doit.db"
-                ).addMigrations(MIGRATION_1_3, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_1_3, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6).build().also { INSTANCE = it }
             }
         }
     }

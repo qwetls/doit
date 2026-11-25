@@ -399,11 +399,13 @@ fun HomeScreen(
         } else {
             DoitCard {
                 Column {
+                    val customs by viewModel.customCategories.collectAsState()
                     state.recent.forEach { tx ->
                         TransactionRow(
                             tx = tx,
                             currency = viewModel.walletCurrency(tx.walletId),
-                            walletName = viewModel.walletName(tx.walletId)
+                            walletName = viewModel.walletName(tx.walletId),
+                            customCategories = customs
                         )
                     }
                 }

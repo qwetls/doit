@@ -9,14 +9,20 @@ import android.graphics.pdf.PdfDocument
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.room.withTransaction
 import com.xeylabs.doit.data.AppDatabase
+import com.xeylabs.doit.data.BackupCodec
+import com.xeylabs.doit.data.BackupData
 import com.xeylabs.doit.data.Bill
 import com.xeylabs.doit.data.BudgetPosition
 import com.xeylabs.doit.data.Category
+import com.xeylabs.doit.data.CategoryRef
 import com.xeylabs.doit.data.Currency
+import com.xeylabs.doit.data.CustomCategory
 import com.xeylabs.doit.data.Debt
 import com.xeylabs.doit.data.DebtDirection
 import com.xeylabs.doit.data.DebtKind
+import com.xeylabs.doit.data.PendingRestore
 import com.xeylabs.doit.data.Receipts
 import com.xeylabs.doit.data.RecurringFrequency
 import com.xeylabs.doit.data.RecurringTransaction
@@ -26,6 +32,9 @@ import com.xeylabs.doit.data.Transaction
 import com.xeylabs.doit.data.TxnType
 import com.xeylabs.doit.data.Wallet
 import com.xeylabs.doit.data.WalletType
+import com.xeylabs.doit.data.customCategoryKey
+import com.xeylabs.doit.data.fallbackCategoryKey
+import com.xeylabs.doit.data.resolveCategoryRef
 import com.xeylabs.doit.data.walletCurrency
 import com.xeylabs.doit.widget.DoitWidgetProvider
 import java.io.File
@@ -49,9 +58,9 @@ import kotlin.math.ceil
 
 data class DaySpend(val label: String, val amount: Long)
 data class MonthSpend(val label: String, val amount: Long)
-data class CategorySpend(val category: Category, val amount: Long, val count: Int = 0)
+data class CategorySpend(val category: CategoryRef, val amount: Long, val count: Int = 0)
 data class WalletBalance(val wallet: Wallet, val balance: Long)
-data class IncomeSourceSpend(val category: Category, val amount: Long)
+data class IncomeSourceSpend(val category: CategoryRef, val amount: Long)
 data class WalletMonthSpend(val wallet: Wallet, val income: Long, val expense: Long)
 data class BillDue(val bill: Bill, val dueDate: LocalDate, val overdue: Boolean)
 
@@ -166,6 +175,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val debtDao = db.debtDao()
     private val billDao = db.billDao()
     private val budgetPositionDao = db.budgetPositionDao()
+    private val customCategoryDao = db.customCategoryDao()
     private val settings = SettingsStore(app)
 
     val selectedMonth = MutableStateFlow(YearMonth.now())
@@ -174,7 +184,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val reportRangeSelection: StateFlow<Pair<ReportRange, Pair<Long, Long>?>> =
         combine(reportRange, customRange) { range, custom -> range to custom }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ReportRange.MONTH to null)
-    val historyCategory = MutableStateFlow<Category?>(null)
+    val historyCategory = MutableStateFlow<String?>(null)
     val historyWalletId = MutableStateFlow<Long?>(null)
     val searchQuery = MutableStateFlow("")
 
@@ -212,7 +222,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val budgetPositions: StateFlow<List<BudgetPosition>> = budgetPositionDao.getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val monthCategorySpent: StateFlow<Map<Category, Long>> = combine(
+    val customCategories: StateFlow<List<CustomCategory>> = customCategoryDao.getAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val transactionCount: StateFlow<Int> = allTransactions
+        .map { it.size }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    private val _pendingRestore = MutableStateFlow<PendingRestore?>(null)
+    val pendingRestore: StateFlow<PendingRestore?> = _pendingRestore
+
+    private val _backupMessage = MutableStateFlow<String?>(null)
+    val backupMessage: StateFlow<String?> = _backupMessage
+
+    val monthCategorySpent: StateFlow<Map<String, Long>> = combine(
         allTransactions, selectedMonth, wallets
     ) { txs, month, walletList ->
         val defaultId = walletList.firstOrNull()?.id
@@ -220,20 +243,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             it.type == TxnType.EXPENSE.name &&
                 YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == month &&
                 (walletList.firstOrNull { w -> w.id == (it.walletId ?: defaultId) }?.currency ?: "IDR") == "IDR"
-        }.groupBy { Category.fromName(it.category) }
+        }.groupBy { it.category }
             .mapValues { (_, list) -> list.sumOf { it.amount } }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
-    val recentCategories: StateFlow<List<Category>> = allTransactions
-        .map { txs ->
-            txs.filter { it.type == TxnType.EXPENSE.name }
-                .groupingBy { Category.fromName(it.category) }
-                .eachCount()
-                .entries.sortedByDescending { it.value }
-                .map { it.key }
-                .take(4)
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val recentCategories: StateFlow<List<CategoryRef>> = combine(
+        allTransactions, customCategories
+    ) { txs, customs ->
+        txs.groupingBy { it.category }
+            .eachCount()
+            .entries.sortedByDescending { it.value }
+            .map { resolveCategoryRef(it.key, customs) }
+            .take(8)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /** Saldo tiap dompet = saldo awal + pemasukan − pengeluaran − transfer keluar + transfer masuk (jumlah diterima untuk beda mata uang). */
     val walletBalances: StateFlow<List<WalletBalance>> = combine(
@@ -244,14 +266,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Pemasukan per sumber (Gaji pokok / Lembur / Sampingan / Lain-lain) di bulan terpilih, mata uang utama saja. */
     val incomeBySource: StateFlow<List<IncomeSourceSpend>> = combine(
-        allTransactions, selectedMonth, settings.defaultCurrency, wallets
-    ) { txs, month, currency, walletList ->
-        computeIncomeBySource(txs, month, currency, walletList)
+        allTransactions, selectedMonth, settings.defaultCurrency, wallets, customCategories
+    ) { txs, month, currency, walletList, customs ->
+        computeIncomeBySource(txs, month, currency, walletList, customs)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val reportState: StateFlow<ReportUiState> = combine(
-        allTransactions, selectedMonth, wallets, settings.defaultCurrency, reportRangeSelection
-    ) { txs, month, walletList, currency, rangeSelection ->
+        combine(allTransactions, customCategories) { txs, customs -> txs to customs },
+        selectedMonth, wallets, settings.defaultCurrency, reportRangeSelection
+    ) { txsAndCustoms, month, walletList, currency, rangeSelection ->
+        val (txs, customs) = txsAndCustoms
         val (range, custom) = rangeSelection
         val defaultId = walletList.firstOrNull()?.id
         fun txCurrency(tx: Transaction): String =
@@ -293,12 +317,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             defaultCurrency = currency,
             monthIncomeByCurrency = incomeByCurrency,
             monthExpenseByCurrency = expenseByCurrency,
-            perCategory = Category.forType(TxnType.EXPENSE)
-                .map { category ->
-                    val catTxs = inRange.filter { it.category == category.name }
-                    CategorySpend(category, catTxs.sumOf { it.amount }, catTxs.size)
-                }
-                .filter { it.amount > 0 }
+            perCategory = inRange
+                .filter { it.type == TxnType.EXPENSE.name }
+                .groupBy { it.category }
+                .map { (key, catTxs) -> CategorySpend(resolveCategoryRef(key, customs), catTxs.sumOf { it.amount }, catTxs.size) }
                 .sortedByDescending { it.amount },
             perWallet = walletList.map { wallet ->
                 val walletTxs = txs.filter { (it.walletId ?: defaultId) == wallet.id }
@@ -315,7 +337,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     expense = walletInRange.filter { it.type == TxnType.EXPENSE.name }.sumOf { it.amount } + transferOut
                 )
             },
-            perSource = computeIncomeBySourceRange(txs, range, month, currency, walletList, custom),
+            perSource = computeIncomeBySourceRange(txs, range, month, currency, walletList, custom, customs),
             insightExpenseChangePct = expenseChangePct,
             insightSavingsRatePct = savingsRatePct
         )
@@ -364,12 +386,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         ) { txs, month, bBelanja, bDarurat, bTabungan ->
             HomeInputs(txs, month, bBelanja, bDarurat, bTabungan)
         },
-        goals,
+        combine(goals, customCategories) { goals, customs -> goals to customs },
         settingsPair,
         wallets,
         bills
-    ) { inputs, goals, pair, walletList, billList ->
-        buildHomeState(inputs, goals, pair.first, pair.second, walletList, billList)
+    ) { inputs, goalsAndCustoms, pair, walletList, billList ->
+        val (goals, customs) = goalsAndCustoms
+        buildHomeState(inputs, goals, customs, pair.first, pair.second, walletList, billList)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeUiState())
 
     private fun computeWalletBalances(
@@ -400,7 +423,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         txs: List<Transaction>,
         month: YearMonth,
         currency: String,
-        walletList: List<Wallet>
+        walletList: List<Wallet>,
+        customs: List<CustomCategory>
     ): List<IncomeSourceSpend> {
         val defaultId = walletList.firstOrNull()?.id
         return txs.filter {
@@ -408,8 +432,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == month &&
                 (walletList.firstOrNull { w -> w.id == (it.walletId ?: defaultId) }?.currency ?: "IDR") == currency
         }
-            .groupBy { Category.fromName(it.category) }
-            .map { (category, list) -> IncomeSourceSpend(category, list.sumOf { it.amount }) }
+            .groupBy { it.category }
+            .map { (key, list) -> IncomeSourceSpend(resolveCategoryRef(key, customs), list.sumOf { it.amount }) }
             .sortedByDescending { it.amount }
     }
 
@@ -419,7 +443,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         month: YearMonth,
         currency: String,
         walletList: List<Wallet>,
-        customRange: Pair<Long, Long>? = null
+        customRange: Pair<Long, Long>? = null,
+        customs: List<CustomCategory>
     ): List<IncomeSourceSpend> {
         val defaultId = walletList.firstOrNull()?.id
         return txs.filter {
@@ -427,8 +452,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 inReportRange(LocalDate.ofEpochDay(it.dateEpochDay), range, month, customRange) &&
                 (walletList.firstOrNull { w -> w.id == (it.walletId ?: defaultId) }?.currency ?: "IDR") == currency
         }
-            .groupBy { Category.fromName(it.category) }
-            .map { (category, list) -> IncomeSourceSpend(category, list.sumOf { it.amount }) }
+            .groupBy { it.category }
+            .map { (key, list) -> IncomeSourceSpend(resolveCategoryRef(key, customs), list.sumOf { it.amount }) }
             .sortedByDescending { it.amount }
     }
 
@@ -449,6 +474,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun buildHomeState(
         inputs: HomeInputs,
         goals: List<SavingsGoal>,
+        customs: List<CustomCategory>,
         monthlyIncome: Long,
         defaultCurrency: String,
         walletList: List<Wallet>,
@@ -520,9 +546,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             MonthSpend(ym.atDay(1).format(monthAbbrev), amount)
         }
 
-        val categoryBreakdown = Category.forType(TxnType.EXPENSE)
-            .map { category -> CategorySpend(category, categorySpent(inMonth, category)) }
-            .filter { it.amount > 0 }
+        val categoryBreakdown = inMonth
+            .filter { it.type == TxnType.EXPENSE.name }
+            .groupBy { it.category }
+            .map { (key, list) -> CategorySpend(resolveCategoryRef(key, customs), list.sumOf { it.amount }) }
             .sortedByDescending { it.amount }
 
         val insights = buildInsights(
@@ -589,7 +616,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             recent = txs.take(5),
             wallets = walletBalanceList,
             totalBalance = balanceByCurrency[defaultCurrency] ?: 0,
-            incomeBySource = computeIncomeBySource(txs, month, defaultCurrency, walletList),
+            incomeBySource = computeIncomeBySource(txs, month, defaultCurrency, walletList, customs),
             dueBills = computeDueBills(billList)
         )
     }
@@ -680,17 +707,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     val historyList: StateFlow<List<Transaction>> = combine(
-        allTransactions, selectedMonth, historyCategory, searchQuery, historyWalletId
-    ) { txs, month, category, query, walletId ->
+        combine(allTransactions, customCategories) { txs, customs -> txs to customs },
+        selectedMonth, historyCategory, searchQuery, historyWalletId
+    ) { txsAndCustoms, month, categoryKey, query, walletId ->
+        val (txs, customs) = txsAndCustoms
         val q = query.trim()
         val defaultId = wallets.value.firstOrNull()?.id
         txs.filter { YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == month }
-            .filter { category == null || it.category == category.name }
+            .filter { categoryKey == null || it.category == categoryKey }
             .filter { walletId == null || (it.walletId ?: defaultId) == walletId }
             .filter {
                 q.isEmpty() ||
                     it.note.contains(q, ignoreCase = true) ||
-                    Category.fromName(it.category).label.contains(q, ignoreCase = true) ||
+                    resolveCategoryRef(it.category, customs).label.contains(q, ignoreCase = true) ||
                     it.amount.toString().contains(q)
             }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -770,7 +799,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun addTransaction(
         type: TxnType,
-        category: Category,
+        categoryKey: String,
         amount: Long,
         date: LocalDate,
         note: String,
@@ -782,7 +811,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             dao.insert(
                 Transaction(
                     type = type.name,
-                    category = category.name,
+                    category = categoryKey,
                     amount = amount,
                     dateEpochDay = date.toEpochDay(),
                     note = note.trim(),
@@ -791,7 +820,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 )
             )
             if (resolved != null) settings.setLastWalletId(resolved)
-            settings.setLastCategory(category.name)
+            settings.setLastCategory(categoryKey)
             DoitWidgetProvider.refresh(getApplication())
         }
     }
@@ -867,8 +896,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteWallet(wallet: Wallet) {
         viewModelScope.launch {
-            if (walletDao.getAllOnce().size <= 1) return@launch
-            walletDao.delete(wallet)
+            val all = walletDao.getAllOnce()
+            if (all.size <= 1) return@launch
+            val fallback = all.firstOrNull { it.id != wallet.id } ?: return@launch
+            db.withTransaction {
+                dao.updateWalletId(wallet.id, fallback.id)
+                dao.updateTransferToWalletId(wallet.id, fallback.id)
+                recurringDao.updateWalletId(wallet.id, fallback.id)
+                walletDao.delete(wallet)
+            }
+            if (settings.lastWalletId.value == wallet.id) settings.setLastWalletId(fallback.id)
+            if (historyWalletId.value == wallet.id) historyWalletId.value = null
+            DoitWidgetProvider.refresh(getApplication())
         }
     }
 
@@ -928,6 +967,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { debtDao.delete(debt) }
     }
 
+    fun updateDebt(debt: Debt) {
+        viewModelScope.launch {
+            val paid = debt.paid.coerceAtMost(debt.amount)
+            debtDao.update(debt.copy(paid = paid, isSettled = paid >= debt.amount))
+        }
+    }
+
 
     fun addBill(name: String, amount: Long, dueDayOfMonth: Int) {
         viewModelScope.launch {
@@ -950,10 +996,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
 
-    fun addBudgetPosition(name: String, category: Category, limitAmount: Long) {
+    fun addBudgetPosition(name: String, categoryKey: String, limitAmount: Long) {
         viewModelScope.launch {
             budgetPositionDao.insert(
-                BudgetPosition(name = name.trim(), category = category.name, limitAmount = limitAmount)
+                BudgetPosition(name = name.trim(), category = categoryKey, limitAmount = limitAmount)
             )
         }
     }
@@ -965,6 +1011,45 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteBudgetPosition(position: BudgetPosition) {
         viewModelScope.launch { budgetPositionDao.delete(position) }
     }
+
+    fun addCustomCategory(
+        name: String,
+        type: TxnType,
+        iconKey: String,
+        colorHex: Long,
+        onCreated: (Long) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            val id = customCategoryDao.insert(
+                CustomCategory(name = name.trim(), type = type.name, iconKey = iconKey, colorHex = colorHex)
+            )
+            onCreated(id)
+        }
+    }
+
+    fun updateCustomCategory(category: CustomCategory) {
+        viewModelScope.launch { customCategoryDao.update(category) }
+    }
+
+    fun deleteCustomCategory(category: CustomCategory) {
+        viewModelScope.launch {
+            val fallback = fallbackCategoryKey(
+                runCatching { TxnType.valueOf(category.type) }.getOrDefault(TxnType.EXPENSE)
+            )
+            val key = customCategoryKey(category.id)
+            db.withTransaction {
+                dao.updateCategory(key, fallback)
+                recurringDao.updateCategory(key, fallback)
+                budgetPositionDao.updateCategory(key, fallback)
+                customCategoryDao.delete(category)
+            }
+            if (settings.lastCategory.value == key) settings.setLastCategory(fallback)
+            if (historyCategory.value == key) historyCategory.value = null
+        }
+    }
+
+    fun categoryLabel(key: String): String =
+        resolveCategoryRef(key, customCategories.value).label
 
     /** Tandai tagihan bulan ini lunas + catat sebagai pengeluaran (Rp) di dompet Rupiah. */
     fun markBillPaid(bill: Bill) {
@@ -1018,7 +1103,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 csv.append(LocalDate.ofEpochDay(tx.dateEpochDay))
                     .append(',').append(typeLabel)
-                    .append(',').append(Category.fromName(tx.category).label)
+                    .append(',').append(categoryLabel(tx.category))
                     .append(',').append(walletLabel)
                     .append(',').append(currencyOf(tx.walletId))
                     .append(',').append(tx.amount)
@@ -1245,8 +1330,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         reportRange.value = ReportRange.MONTH
     }
 
-    fun setHistoryCategory(category: Category?) {
-        historyCategory.value = category
+    fun setHistoryCategory(categoryKey: String?) {
+        historyCategory.value = categoryKey
     }
 
     fun setHistoryWallet(walletId: Long?) {
@@ -1264,4 +1349,148 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setDisplayName(value: String) = settings.setDisplayName(value)
     fun setDefaultCurrency(code: String) = settings.setDefaultCurrency(code)
     fun setDefaultWallet(id: Long) = settings.setLastWalletId(id)
+
+    fun clearBackupMessage() {
+        _backupMessage.value = null
+    }
+
+    fun exportBackup() {
+        viewModelScope.launch {
+            try {
+                val data = BackupData(
+                    transactions = dao.getAllOnce(),
+                    wallets = walletDao.getAllOnce(),
+                    goals = goalDao.getAllOnce(),
+                    recurrings = recurringDao.getAllOnce(),
+                    debts = debtDao.getAllOnce(),
+                    bills = billDao.getAllOnce(),
+                    budgetPositions = budgetPositionDao.getAllOnce(),
+                    customCategories = customCategoryDao.getAllOnce(),
+                    settings = settings.snapshot()
+                )
+                val app = getApplication<Application>()
+                val dir = File(app.cacheDir, "exports").apply { mkdirs() }
+                val stamp = LocalDate.now().toString()
+                val file = File(dir, "doit-cadangan-$stamp.json")
+                file.writeText(BackupCodec.toJson(data))
+                val uri = FileProvider.getUriForFile(app, "com.xeylabs.doit.fileprovider", file)
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "application/json"
+                    putExtra(Intent.EXTRA_SUBJECT, "do.it — cadangan $stamp")
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                val chooser = Intent.createChooser(shareIntent, "Simpan / bagikan cadangan").apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                app.startActivity(chooser)
+                _backupMessage.value = "Cadangan dibuat (${data.transactions.size} transaksi) — simpan filenya di tempat aman."
+            } catch (e: Exception) {
+                _backupMessage.value = "Cadangan gagal dibuat."
+            }
+        }
+    }
+
+    fun prepareRestore(jsonText: String?) {
+        viewModelScope.launch {
+            if (jsonText.isNullOrBlank()) {
+                _backupMessage.value = "File cadangan tidak bisa dibaca."
+                return@launch
+            }
+            try {
+                val data = BackupCodec.fromJson(jsonText)
+                _pendingRestore.value = PendingRestore(
+                    summary = "Cadangan berisi ${data.transactions.size} transaksi, ${data.wallets.size} dompet, " +
+                        "${data.goals.size} target tabungan, ${data.recurrings.size} transaksi berulang, " +
+                        "${data.debts.size} utang/piutang, ${data.bills.size} tagihan, " +
+                        "${data.budgetPositions.size} pos anggaran, dan ${data.customCategories.size} kategori kustom.",
+                    data = data
+                )
+            } catch (e: Exception) {
+                _backupMessage.value = "Cadangan tidak valid: " + (e.message ?: "format tidak dikenal")
+            }
+        }
+    }
+
+    fun confirmRestore() {
+        viewModelScope.launch {
+            val pending = _pendingRestore.value ?: return@launch
+            _pendingRestore.value = null
+            val data = pending.data
+            try {
+                db.withTransaction {
+                    dao.deleteAll()
+                    goalDao.deleteAll()
+                    walletDao.deleteAll()
+                    recurringDao.deleteAll()
+                    debtDao.deleteAll()
+                    billDao.deleteAll()
+                    budgetPositionDao.deleteAll()
+                    customCategoryDao.deleteAll()
+                    data.transactions.forEach { dao.insert(it) }
+                    data.wallets.forEach { walletDao.insert(it) }
+                    data.goals.forEach { goalDao.insert(it) }
+                    data.recurrings.forEach { recurringDao.insert(it) }
+                    data.debts.forEach { debtDao.insert(it) }
+                    data.bills.forEach { billDao.insert(it) }
+                    data.budgetPositions.forEach { budgetPositionDao.insert(it) }
+                    data.customCategories.forEach { customCategoryDao.insert(it) }
+                }
+                data.settings?.let { settings.restore(it) }
+                settings.setOnboardingDone(true)
+                if (walletDao.getAllOnce().isEmpty()) {
+                    walletDao.insert(Wallet(name = "Tunai", type = WalletType.TUNAI.name, initialBalance = 0))
+                    walletDao.insert(Wallet(name = "SeaBank", type = WalletType.BANK.name, initialBalance = 0))
+                }
+                if (goalDao.getAllOnce().isEmpty()) {
+                    goalDao.insert(
+                        SavingsGoal(name = "Laptop", target = settings.savingsTarget.value, saved = 0, isDefault = true)
+                    )
+                }
+                historyCategory.value = null
+                searchQuery.value = ""
+                selectedMonth.value = YearMonth.now()
+                reportRange.value = ReportRange.MONTH
+                customRange.value = null
+                DoitWidgetProvider.refresh(getApplication())
+                _backupMessage.value = "Cadangan dipulihkan: ${data.transactions.size} transaksi, ${data.wallets.size} dompet."
+            } catch (e: Exception) {
+                _backupMessage.value = "Pemulihan gagal: " + (e.message ?: "kesalahan tidak dikenal")
+            }
+        }
+    }
+
+    fun cancelRestore() {
+        _pendingRestore.value = null
+    }
+
+    fun resetAllData() {
+        viewModelScope.launch {
+            db.withTransaction {
+                dao.deleteAll()
+                goalDao.deleteAll()
+                walletDao.deleteAll()
+                recurringDao.deleteAll()
+                debtDao.deleteAll()
+                billDao.deleteAll()
+                budgetPositionDao.deleteAll()
+                customCategoryDao.deleteAll()
+            }
+            Receipts.deleteAllReceipts(getApplication())
+            settings.resetAll()
+            settings.setOnboardingDone(true)
+            walletDao.insert(Wallet(name = "Tunai", type = WalletType.TUNAI.name, initialBalance = 0))
+            walletDao.insert(Wallet(name = "SeaBank", type = WalletType.BANK.name, initialBalance = 0))
+            goalDao.insert(
+                SavingsGoal(name = "Laptop", target = settings.savingsTarget.value, saved = 0, isDefault = true)
+            )
+            historyCategory.value = null
+            historyWalletId.value = null
+            searchQuery.value = ""
+            selectedMonth.value = YearMonth.now()
+            reportRange.value = ReportRange.MONTH
+            customRange.value = null
+            DoitWidgetProvider.refresh(getApplication())
+        }
+    }
 }

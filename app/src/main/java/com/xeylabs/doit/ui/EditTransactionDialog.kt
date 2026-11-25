@@ -23,6 +23,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,9 +34,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.xeylabs.doit.data.Category
 import com.xeylabs.doit.data.Transaction
 import com.xeylabs.doit.data.TxnType
+import com.xeylabs.doit.data.categoryRefsForType
+import com.xeylabs.doit.data.resolveCategoryRef
 import com.xeylabs.doit.viewmodel.MainViewModel
 import java.time.LocalDate
 
@@ -46,16 +48,17 @@ fun EditTransactionDialog(
     viewModel: MainViewModel,
     onDismiss: () -> Unit
 ) {
+    val customCategories by viewModel.customCategories.collectAsState()
     val type = TxnType.valueOf(tx.type)
     val txCurrency = viewModel.walletCurrency(tx.walletId)
     var amountText by remember { mutableStateOf(tx.amount.toString()) }
-    var category by remember { mutableStateOf(Category.fromName(tx.category)) }
+    var category by remember { mutableStateOf(resolveCategoryRef(tx.category, customCategories)) }
     var date by remember { mutableStateOf(LocalDate.ofEpochDay(tx.dateEpochDay)) }
     var note by remember { mutableStateOf(tx.note) }
     var expanded by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
 
-    val categories = Category.forType(type)
+    val categories = categoryRefsForType(type, customCategories)
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -154,7 +157,7 @@ fun EditTransactionDialog(
                 }
                 viewModel.updateTransaction(
                     tx.copy(
-                        category = category.name,
+                        category = category.key,
                         amount = amount,
                         dateEpochDay = date.toEpochDay(),
                         note = note.trim()

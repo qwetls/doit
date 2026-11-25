@@ -39,12 +39,17 @@ import androidx.compose.ui.unit.dp
 import com.xeylabs.doit.data.Bill
 import com.xeylabs.doit.data.Category
 import com.xeylabs.doit.data.Currency
+import com.xeylabs.doit.data.CustomCategory
 import com.xeylabs.doit.data.Debt
 import com.xeylabs.doit.data.DebtDirection
 import com.xeylabs.doit.data.DebtKind
 import com.xeylabs.doit.data.RecurringFrequency
 import com.xeylabs.doit.data.RecurringTransaction
 import com.xeylabs.doit.data.TxnType
+import com.xeylabs.doit.data.builtinCategoryRef
+import com.xeylabs.doit.data.categoryRefsForType
+import com.xeylabs.doit.data.effectiveKind
+import com.xeylabs.doit.data.resolveCategoryRef
 import com.xeylabs.doit.data.Wallet
 import com.xeylabs.doit.data.WalletType
 import com.xeylabs.doit.data.walletCurrency
@@ -276,12 +281,13 @@ fun TransferDialog(
 fun RecurringEditDialog(
     initial: RecurringTransaction?,
     wallets: List<Wallet>,
+    customCategories: List<CustomCategory> = emptyList(),
     onDismiss: () -> Unit,
     onSave: (
         name: String,
         amount: Long,
         type: TxnType,
-        category: Category,
+        categoryKey: String,
         walletId: Long,
         frequency: RecurringFrequency,
         dayOfMonth: Int,
@@ -294,7 +300,10 @@ fun RecurringEditDialog(
         mutableStateOf(initial?.let { runCatching { TxnType.valueOf(it.type) }.getOrDefault(TxnType.EXPENSE) } ?: TxnType.EXPENSE)
     }
     var category by remember {
-        mutableStateOf(initial?.let { Category.fromName(it.category) } ?: Category.BELANJA)
+        mutableStateOf(
+            initial?.let { resolveCategoryRef(it.category, customCategories) }
+                ?: builtinCategoryRef(Category.BELANJA)
+        )
     }
     var walletId by remember { mutableStateOf(initial?.walletId ?: wallets.firstOrNull()?.id ?: 0L) }
     var frequency by remember {
@@ -305,7 +314,7 @@ fun RecurringEditDialog(
     var walletExpanded by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
 
-    val categories = Category.forType(type)
+    val categories = categoryRefsForType(type, customCategories)
     val dayNames = listOf("Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu")
     val walletName = wallets.firstOrNull { it.id == walletId }?.name ?: "-"
 
@@ -332,19 +341,19 @@ fun RecurringEditDialog(
                 SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                     SegmentedButton(
                         selected = type == TxnType.EXPENSE,
-                        onClick = { type = TxnType.EXPENSE; category = Category.BELANJA },
+                        onClick = { type = TxnType.EXPENSE; category = builtinCategoryRef(Category.BELANJA) },
                         shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
                         label = { Text("Pengeluaran") }
                     )
                     SegmentedButton(
                         selected = type == TxnType.INCOME,
-                        onClick = { type = TxnType.INCOME; category = Category.GAJI },
+                        onClick = { type = TxnType.INCOME; category = builtinCategoryRef(Category.GAJI) },
                         shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
                         label = { Text("Pemasukan") }
                     )
                 }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(categories) { option ->
+                    items(categories, key = { it.key }) { option ->
                         FilterChip(
                             selected = category == option,
                             onClick = { category = option },
@@ -432,7 +441,7 @@ fun RecurringEditDialog(
                     frequency == RecurringFrequency.MONTHLY && (dayOfMonth == null || dayOfMonth !in 1..31) ->
                         error = "Tanggal harus 1–31"
                     else -> onSave(
-                        name.trim(), amount, type, category, walletId, frequency,
+                        name.trim(), amount, type, category.key, walletId, frequency,
                         dayOfMonth ?: 1, dayOfWeek
                     )
                 }
@@ -449,20 +458,25 @@ fun RecurringEditDialog(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebtEditDialog(
+    initial: Debt? = null,
     onDismiss: () -> Unit,
     onSave: (personName: String, amount: Long, direction: DebtDirection, kind: DebtKind, provider: String, date: LocalDate) -> Unit
 ) {
-    var personName by remember { mutableStateOf("") }
-    var amountText by remember { mutableStateOf("") }
-    var direction by remember { mutableStateOf(DebtDirection.BORROWED) }
-    var kind by remember { mutableStateOf(DebtKind.UTANG) }
-    var provider by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf(LocalDate.now()) }
+    var personName by remember { mutableStateOf(initial?.personName ?: "") }
+    var amountText by remember { mutableStateOf(initial?.amount?.toString() ?: "") }
+    var direction by remember {
+        mutableStateOf(initial?.let { DebtDirection.fromName(it.direction) } ?: DebtDirection.BORROWED)
+    }
+    var kind by remember { mutableStateOf(initial?.effectiveKind() ?: DebtKind.UTANG) }
+    var provider by remember { mutableStateOf(initial?.provider ?: "") }
+    var date by remember {
+        mutableStateOf(initial?.let { LocalDate.ofEpochDay(it.dateEpochDay) } ?: LocalDate.now())
+    }
     var error by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Paylater / utang / piutang baru") },
+        title = { Text(if (initial == null) "Paylater / utang / piutang baru" else "Ubah utang / piutang") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Jenis", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)

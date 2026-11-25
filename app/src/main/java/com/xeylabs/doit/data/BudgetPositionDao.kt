@@ -23,4 +23,10 @@ interface BudgetPositionDao {
 
     @Delete
     suspend fun delete(position: BudgetPosition)
+
+    @Query("DELETE FROM budget_positions")
+    suspend fun deleteAll()
+
+    @Query("UPDATE budget_positions SET category = :newKey WHERE category = :oldKey")
+    suspend fun updateCategory(oldKey: String, newKey: String)
 }

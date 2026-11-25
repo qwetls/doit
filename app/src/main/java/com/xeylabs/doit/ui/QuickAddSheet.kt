@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.Backspace
 import androidx.compose.material.icons.filled.Check
@@ -62,8 +63,13 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.xeylabs.doit.data.Category
+import com.xeylabs.doit.data.CategoryRef
 import com.xeylabs.doit.data.Receipts
 import com.xeylabs.doit.data.TxnType
+import com.xeylabs.doit.data.builtinCategoryRef
+import com.xeylabs.doit.data.categoryRefsForType
+import com.xeylabs.doit.data.customCategoryKey
+import com.xeylabs.doit.data.resolveCategoryRef
 import com.xeylabs.doit.data.walletCurrency
 import com.xeylabs.doit.ui.theme.Emerald
 import com.xeylabs.doit.ui.theme.IncomeGreen
@@ -80,6 +86,7 @@ fun QuickAddSheet(
 ) {
     val lastCategoryName by viewModel.lastCategory.collectAsState()
     val recentCategories by viewModel.recentCategories.collectAsState()
+    val customCategories by viewModel.customCategories.collectAsState()
     val wallets by viewModel.wallets.collectAsState()
     val lastWalletId by viewModel.lastWalletId.collectAsState()
     val state by viewModel.uiState.collectAsState()
@@ -99,15 +106,17 @@ fun QuickAddSheet(
     var type by remember { mutableStateOf(initialType ?: TxnType.EXPENSE) }
     var amount by remember { mutableStateOf(0L) }
     var selectedWalletId by remember { mutableStateOf<Long?>(null) }
+    var showAddCategory by remember { mutableStateOf(false) }
     val effectiveWalletId = selectedWalletId
         ?: wallets.firstOrNull { it.id == lastWalletId }?.id
         ?: wallets.firstOrNull()?.id
     val effectiveWallet = wallets.firstOrNull { it.id == effectiveWalletId }
     val walletCurrency = walletCurrency(effectiveWallet)
-    val initialCategory = remember(lastCategoryName) {
-        val last = lastCategoryName?.let { Category.fromName(it) }
+    val initialCategory = remember(lastCategoryName, customCategories) {
+        val last = lastCategoryName?.let { resolveCategoryRef(it, customCategories) }
         if (last != null && last.type == type) last
-        else if (type == TxnType.INCOME) Category.GAJI else Category.BELANJA
+        else if (type == TxnType.INCOME) builtinCategoryRef(Category.GAJI)
+        else builtinCategoryRef(Category.BELANJA)
     }
     var category by remember { mutableStateOf(initialCategory) }
     var date by remember { mutableStateOf(LocalDate.now()) }
@@ -117,8 +126,8 @@ fun QuickAddSheet(
     var toWalletId by remember { mutableStateOf(wallets.getOrNull(1)?.id ?: 0L) }
     var receivedText by remember { mutableStateOf("") }
 
-    val typeCategories = Category.forType(type)
-    val orderedCategories = (recentCategories.filter { it.type == type } + typeCategories).distinct()
+    val typeCategories = categoryRefsForType(type, customCategories)
+    val orderedCategories = (recentCategories.filter { it.type == type } + typeCategories).distinctBy { it.key }
     val fromWallet = wallets.firstOrNull { it.id == fromWalletId }
     val toWallet = wallets.firstOrNull { it.id == toWalletId }
     val fromCurrency = walletCurrency(fromWallet)
@@ -145,7 +154,7 @@ fun QuickAddSheet(
                     selected = type == TxnType.EXPENSE,
                     onClick = {
                         type = TxnType.EXPENSE
-                        category = Category.BELANJA
+                        category = builtinCategoryRef(Category.BELANJA)
                     },
                     shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3),
                     label = { Text("Pengeluaran") }
@@ -154,7 +163,7 @@ fun QuickAddSheet(
                     selected = type == TxnType.INCOME,
                     onClick = {
                         type = TxnType.INCOME
-                        category = Category.GAJI
+                        category = builtinCategoryRef(Category.GAJI)
                     },
                     shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
                     label = { Text("Pemasukan") }
@@ -288,6 +297,17 @@ fun QuickAddSheet(
                         }
                     }
                 }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    CategoryAddCell(
+                        onClick = { showAddCategory = true },
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    Spacer(modifier = Modifier.weight(1f))
+                }
 
                 if (wallets.isNotEmpty()) {
                     Text("Dompet", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
@@ -407,9 +427,9 @@ fun QuickAddSheet(
             }
 
             if (!isTransfer && type == TxnType.EXPENSE && amount > 0) {
-                val budgetPair = when (category) {
-                    Category.BELANJA -> "Belanja harian" to (state.budgetBelanja - state.belanjaSpent)
-                    Category.DARURAT -> "Dana darurat" to (state.budgetDarurat - state.daruratSpent)
+                val budgetPair = when (category.key) {
+                    Category.BELANJA.name -> "Belanja harian" to (state.budgetBelanja - state.belanjaSpent)
+                    Category.DARURAT.name -> "Dana darurat" to (state.budgetDarurat - state.daruratSpent)
                     else -> null
                 }
                 val pair = budgetPair
@@ -467,7 +487,7 @@ fun QuickAddSheet(
                         error = "Masukkan jumlah lebih dari 0"
                         return@Button
                     }
-                    viewModel.addTransaction(type, category, amount, date, note, walletId = effectiveWalletId, receiptPath = receiptPath)
+                    viewModel.addTransaction(type, category.key, amount, date, note, walletId = effectiveWalletId, receiptPath = receiptPath)
                     receiptSaved = true
                     onDismiss()
                 },
@@ -482,11 +502,61 @@ fun QuickAddSheet(
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
+
+    if (showAddCategory) {
+        CustomCategoryEditDialog(
+            initial = null,
+            fixedType = type,
+            onDismiss = { showAddCategory = false },
+            onSave = { name, catType, iconKey, colorHex ->
+                viewModel.addCustomCategory(name, catType, iconKey, colorHex) { id ->
+                    category = CategoryRef(customCategoryKey(id), name, catType, iconKey, colorHex)
+                }
+                showAddCategory = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun CategoryAddCell(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .clickable { onClick() }
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Box(
+                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(12.dp))
+                    .background(Emerald.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Filled.Add,
+                    contentDescription = null,
+                    tint = Emerald,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Text(
+                "+ Kategori",
+                style = MaterialTheme.typography.labelMedium,
+                textAlign = TextAlign.Center,
+                maxLines = 2
+            )
+        }
+    }
 }
 
 @Composable
 private fun CategoryCell(
-    category: Category,
+    category: CategoryRef,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -506,7 +576,7 @@ private fun CategoryCell(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            CategoryIconTile(category = category, size = 40)
+            CategoryIconTile(ref = category, size = 40)
             Text(
                 category.label,
                 style = MaterialTheme.typography.labelMedium,

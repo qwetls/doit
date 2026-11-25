@@ -4,6 +4,16 @@ import android.content.Context
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
+data class SettingsSnapshot(
+    val budgetBelanja: Long = 200_000L,
+    val budgetDarurat: Long = 100_000L,
+    val budgetTabungan: Long = 700_000L,
+    val savingsTarget: Long = 3_000_000L,
+    val monthlyIncome: Long = 1_000_000L,
+    val displayName: String = "Adrien",
+    val defaultCurrency: String = "IDR"
+)
+
 class SettingsStore(context: Context) {
     private val prefs = context.getSharedPreferences("doit_settings", Context.MODE_PRIVATE)
 
@@ -75,6 +85,40 @@ class SettingsStore(context: Context) {
         val normalized = if (code == "USD") "USD" else "IDR"
         prefs.edit().putString(KEY_DEFAULT_CURRENCY, normalized).apply()
         _defaultCurrency.value = normalized
+    }
+
+    fun snapshot(): SettingsSnapshot = SettingsSnapshot(
+        budgetBelanja = _budgetBelanja.value,
+        budgetDarurat = _budgetDarurat.value,
+        budgetTabungan = _budgetTabungan.value,
+        savingsTarget = _savingsTarget.value,
+        monthlyIncome = _monthlyIncome.value,
+        displayName = _displayName.value,
+        defaultCurrency = _defaultCurrency.value
+    )
+
+    fun restore(snapshot: SettingsSnapshot) {
+        setBudgetBelanja(snapshot.budgetBelanja)
+        setBudgetDarurat(snapshot.budgetDarurat)
+        setBudgetTabungan(snapshot.budgetTabungan)
+        setSavingsTarget(snapshot.savingsTarget)
+        setMonthlyIncome(snapshot.monthlyIncome)
+        setDisplayName(snapshot.displayName)
+        setDefaultCurrency(snapshot.defaultCurrency)
+    }
+
+    fun resetAll() {
+        prefs.edit().clear().apply()
+        _budgetBelanja.value = 200_000L
+        _budgetDarurat.value = 100_000L
+        _budgetTabungan.value = 700_000L
+        _savingsTarget.value = 3_000_000L
+        _monthlyIncome.value = 1_000_000L
+        _onboardingDone.value = false
+        _lastCategory.value = null
+        _lastWalletId.value = 0L
+        _displayName.value = "Adrien"
+        _defaultCurrency.value = "IDR"
     }
 
     private fun save(key: String, value: Long, flow: MutableStateFlow<Long>) {

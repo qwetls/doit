@@ -23,4 +23,7 @@ interface WalletDao {
 
     @Delete
     suspend fun delete(wallet: Wallet)
+
+    @Query("DELETE FROM wallets")
+    suspend fun deleteAll()
 }

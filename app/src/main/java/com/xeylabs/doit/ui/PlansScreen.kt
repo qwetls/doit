@@ -33,7 +33,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.xeylabs.doit.DoitTab
 import com.xeylabs.doit.data.Bill
-import com.xeylabs.doit.data.Category
 import com.xeylabs.doit.data.Debt
 import com.xeylabs.doit.data.DebtDirection
 import com.xeylabs.doit.data.DebtKind
@@ -109,6 +108,7 @@ fun PlansScreen(viewModel: MainViewModel, onNavigate: (DoitTab) -> Unit) {
 private fun RecurringSection(viewModel: MainViewModel) {
     val wallets by viewModel.wallets.collectAsState()
     val recurrings by viewModel.recurrings.collectAsState()
+    val customCategories by viewModel.customCategories.collectAsState()
 
     var showRecurringEdit by remember { mutableStateOf<RecurringTransaction?>(null) }
     var showAddRecurring by remember { mutableStateOf(false) }
@@ -154,7 +154,7 @@ private fun RecurringSection(viewModel: MainViewModel) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            Category.fromName(recurring.category).label,
+                            viewModel.categoryLabel(recurring.category),
                             style = MaterialTheme.typography.bodySmall,
                             color = if (recurring.type == TxnType.INCOME.name) IncomeGreen else ExpenseRed
                         )
@@ -178,14 +178,15 @@ private fun RecurringSection(viewModel: MainViewModel) {
         RecurringEditDialog(
             initial = null,
             wallets = wallets,
+            customCategories = customCategories,
             onDismiss = { showAddRecurring = false },
-            onSave = { name, amount, type, category, walletId, frequency, dayOfMonth, dayOfWeek ->
+            onSave = { name, amount, type, categoryKey, walletId, frequency, dayOfMonth, dayOfWeek ->
                 viewModel.addRecurring(
                     RecurringTransaction(
                         name = name,
                         amount = amount,
                         type = type.name,
-                        category = category.name,
+                        category = categoryKey,
                         walletId = walletId,
                         frequency = frequency.name,
                         dayOfMonth = dayOfMonth,
@@ -203,14 +204,15 @@ private fun RecurringSection(viewModel: MainViewModel) {
         RecurringEditDialog(
             initial = recurringToEdit,
             wallets = wallets,
+            customCategories = customCategories,
             onDismiss = { showRecurringEdit = null },
-            onSave = { name, amount, type, category, walletId, frequency, dayOfMonth, dayOfWeek ->
+            onSave = { name, amount, type, categoryKey, walletId, frequency, dayOfMonth, dayOfWeek ->
                 viewModel.updateRecurring(
                     recurringToEdit.copy(
                         name = name,
                         amount = amount,
                         type = type.name,
-                        category = category.name,
+                        category = categoryKey,
                         walletId = walletId,
                         frequency = frequency.name,
                         dayOfMonth = dayOfMonth,
@@ -247,6 +249,7 @@ private fun DebtsSection(viewModel: MainViewModel) {
     val debts by viewModel.debts.collectAsState()
 
     var showAddDebt by remember { mutableStateOf(false) }
+    var debtToEdit by remember { mutableStateOf<Debt?>(null) }
     var debtToPay by remember { mutableStateOf<Debt?>(null) }
     var debtToDelete by remember { mutableStateOf<Debt?>(null) }
 
@@ -306,6 +309,9 @@ private fun DebtsSection(viewModel: MainViewModel) {
                     if (!debt.isSettled) {
                         TextButton(onClick = { debtToPay = debt }) { Text("Bayar") }
                     }
+                    IconButton(onClick = { debtToEdit = debt }) {
+                        Icon(Icons.Filled.Edit, contentDescription = "Ubah", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                     IconButton(onClick = { debtToDelete = debt }) {
                         Icon(Icons.Filled.Delete, contentDescription = "Hapus", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -325,6 +331,26 @@ private fun DebtsSection(viewModel: MainViewModel) {
             onSave = { personName, amount, direction, kind, provider, date ->
                 viewModel.addDebt(personName, amount, direction, kind, provider, date)
                 showAddDebt = false
+            }
+        )
+    }
+    val debtEditTarget = debtToEdit
+    if (debtEditTarget != null) {
+        DebtEditDialog(
+            initial = debtEditTarget,
+            onDismiss = { debtToEdit = null },
+            onSave = { personName, amount, direction, kind, provider, date ->
+                viewModel.updateDebt(
+                    debtEditTarget.copy(
+                        personName = personName,
+                        amount = amount,
+                        direction = direction.name,
+                        kind = kind.name,
+                        provider = provider.ifBlank { null },
+                        dateEpochDay = date.toEpochDay()
+                    )
+                )
+                debtToEdit = null
             }
         )
     }

@@ -2,6 +2,13 @@
 
 Aplikasi pencatat uang yang ringan — money management untuk gaji Rp1.000.000/bulan.
 
+**v1.8.0 — Kategori kustom, cadangan & pulihkan, reset semua data:**
+- Reset Semua Data di Akun (Zona berbahaya, dua kali konfirmasi; dialog pertama menawarkan "Ekspor cadangan dulu") — menghapus semua transaksi, dompet, anggaran, target, utang, tagihan, kategori kustom, foto struk, dan mengembalikan pengaturan ke awal; dompet Tunai + SeaBank dan target Laptop dibuat ulang.
+- Kategori kustom di Akun (Kategori Saya) — nama, jenis pemasukan/pengeluaran, ikon (10 pilihan), warna (8 pilihan); muncul di grid Catat Transaksi (tombol "+ Kategori"), laporan/donut, filter riwayat, pos anggaran, dan jadwal rutin. Hapus kategori yang dipakai memindahkan transaksinya ke "Lain-lain".
+- Cadangan & Pulihkan di Akun — ekspor semua data ke satu file JSON (FileProvider), pulihkan dari file .json dengan dialog konfirmasi berisi isi cadangan; data lama diganti dalam satu transaksi database.
+- Pelengkap: hapus dompet kini benar-benar memindahkan transaksinya ke dompet pertama (sebelumnya klaim di dialog tidak sesuai kode); utang/piutang kini bisa diubah.
+- Migrasi aman ke database v6 (tabel kategori kustom).
+
 **v1.7.0 — Samakan persis fitur + UI contoh FluxCash:**
 - Lampiran Struk foto di Catat Transaksi (tombol "Unggah Foto Struk" + thumbnail, tersimpan internal, tampil juga saat ubah transaksi, ikut terhapus saat transaksi dihapus).
 - + Tambah Pos Anggaran di bawah 3 pos tetap (Belanja/Darurat/Tabungan) — tambah/ubah/hapus, total overview ikut menghitung pos tambahan.

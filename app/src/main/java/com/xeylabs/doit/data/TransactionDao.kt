@@ -23,4 +23,16 @@ interface TransactionDao {
 
     @Delete
     suspend fun delete(tx: Transaction)
+
+    @Query("DELETE FROM transactions")
+    suspend fun deleteAll()
+
+    @Query("UPDATE transactions SET category = :newKey WHERE category = :oldKey")
+    suspend fun updateCategory(oldKey: String, newKey: String)
+
+    @Query("UPDATE transactions SET walletId = :newId WHERE walletId = :oldId")
+    suspend fun updateWalletId(oldId: Long, newId: Long)
+
+    @Query("UPDATE transactions SET transferToWalletId = :newId WHERE transferToWalletId = :oldId")
+    suspend fun updateTransferToWalletId(oldId: Long, newId: Long)
 }

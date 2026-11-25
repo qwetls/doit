@@ -125,7 +125,7 @@ fun DonutChart(
 }
 
 fun List<CategorySpend>.toDonutSlices(): List<DonutSlice> =
-    map { DonutSlice(it.category.label, it.amount, com.xeylabs.doit.ui.theme.categoryColor(it.category.name)) }
+    map { DonutSlice(it.category.label, it.amount, Color(it.category.colorHex)) }
 
 @Composable
 fun BudgetRing(

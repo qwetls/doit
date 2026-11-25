@@ -34,6 +34,13 @@ object Receipts {
         }
     }
 
+    fun deleteAllReceipts(context: Context) {
+        try {
+            File(context.filesDir, "receipts").deleteRecursively()
+        } catch (e: Exception) {
+        }
+    }
+
     fun receiptFile(context: Context, relativePath: String?): File? {
         if (relativePath.isNullOrBlank()) return null
         val file = File(context.filesDir, relativePath)

@@ -86,6 +86,7 @@ data class HomeUiState(
     val budgetDarurat: Long = 100_000L,
     val budgetTabungan: Long = 700_000L,
     val monthlyIncome: Long = 1_000_000L,
+    val paydayDay: Int = 0,
     val goals: List<SavingsGoal> = emptyList(),
     val avgMonthlyNet: Long = 0,
     val monthsToTarget: Long? = null,
@@ -371,10 +372,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val budgetTabungan: Long
     )
 
-    private val settingsPair: StateFlow<Pair<Long, String>> = combine(
-        settings.monthlyIncome, settings.defaultCurrency
-    ) { income, currency -> income to currency }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1_000_000L to "IDR")
+    private val settingsPair: StateFlow<Triple<Long, String, Int>> = combine(
+        settings.monthlyIncome, settings.defaultCurrency, settings.paydayDay
+    ) { income, currency, payday -> Triple(income, currency, payday) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), Triple(1_000_000L, "IDR", 0))
 
     val uiState: StateFlow<HomeUiState> = combine(
         combine(
@@ -392,7 +393,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         bills
     ) { inputs, goalsAndCustoms, pair, walletList, billList ->
         val (goals, customs) = goalsAndCustoms
-        buildHomeState(inputs, goals, customs, pair.first, pair.second, walletList, billList)
+        buildHomeState(inputs, goals, customs, pair.first, pair.second, pair.third, walletList, billList)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeUiState())
 
     private fun computeWalletBalances(
@@ -477,6 +478,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         customs: List<CustomCategory>,
         monthlyIncome: Long,
         defaultCurrency: String,
+        paydayDay: Int,
         walletList: List<Wallet>,
         billList: List<Bill>
     ): HomeUiState {
@@ -602,6 +604,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             budgetDarurat = inputs.budgetDarurat,
             budgetTabungan = inputs.budgetTabungan,
             monthlyIncome = monthlyIncome,
+            paydayDay = paydayDay,
             goals = goals,
             avgMonthlyNet = avgMonthlyNet,
             monthsToTarget = monthsToTarget,
@@ -1276,9 +1279,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun deleteGoal(goal: SavingsGoal) {
-        if (goal.isDefault) return
         viewModelScope.launch {
             goalDao.delete(goal)
+            if (goal.isDefault) {
+                val remaining = goalDao.getAllOnce()
+                val oldest = remaining.minByOrNull { it.id }
+                if (oldest != null) {
+                    goalDao.update(oldest.copy(isDefault = true))
+                }
+            }
             DoitWidgetProvider.refresh(getApplication())
         }
     }
@@ -1343,6 +1352,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun setMonthlyIncome(value: Long) = settings.setMonthlyIncome(value)
+    fun setPaydayDay(value: Int) = settings.setPaydayDay(value)
     fun setBudgetBelanja(value: Long) = settings.setBudgetBelanja(value)
     fun setBudgetDarurat(value: Long) = settings.setBudgetDarurat(value)
     fun setBudgetTabungan(value: Long) = settings.setBudgetTabungan(value)

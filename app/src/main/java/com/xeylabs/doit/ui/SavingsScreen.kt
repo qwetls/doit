@@ -202,10 +202,8 @@ private fun GoalCard(
                 IconButton(onClick = onEdit) {
                     Icon(Icons.Filled.Edit, contentDescription = "Ubah target", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                if (!goal.isDefault) {
-                    IconButton(onClick = onDelete) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Hapus target", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Filled.Delete, contentDescription = "Hapus target", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }

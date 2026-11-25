@@ -10,6 +10,7 @@ data class SettingsSnapshot(
     val budgetTabungan: Long = 700_000L,
     val savingsTarget: Long = 3_000_000L,
     val monthlyIncome: Long = 1_000_000L,
+    val paydayDay: Int = 0,
     val displayName: String = "Adrien",
     val defaultCurrency: String = "IDR"
 )
@@ -33,6 +34,10 @@ class SettingsStore(context: Context) {
     private val _monthlyIncome =
         MutableStateFlow(prefs.getLong(KEY_MONTHLY_INCOME, 1_000_000L))
     val monthlyIncome: StateFlow<Long> = _monthlyIncome
+
+    private val _paydayDay =
+        MutableStateFlow(prefs.getInt(KEY_PAYDAY_DAY, 0))
+    val paydayDay: StateFlow<Int> = _paydayDay
 
     private val _onboardingDone =
         MutableStateFlow(prefs.getBoolean(KEY_ONBOARDING_DONE, false))
@@ -59,6 +64,12 @@ class SettingsStore(context: Context) {
     fun setBudgetTabungan(value: Long) = save(KEY_BUDGET_TABUNGAN, value, _budgetTabungan)
     fun setSavingsTarget(value: Long) = save(KEY_SAVINGS_TARGET, value, _savingsTarget)
     fun setMonthlyIncome(value: Long) = save(KEY_MONTHLY_INCOME, value, _monthlyIncome)
+
+    fun setPaydayDay(value: Int) {
+        if (value !in 0..31) return
+        prefs.edit().putInt(KEY_PAYDAY_DAY, value).apply()
+        _paydayDay.value = value
+    }
 
     fun setOnboardingDone(value: Boolean) {
         prefs.edit().putBoolean(KEY_ONBOARDING_DONE, value).apply()
@@ -93,6 +104,7 @@ class SettingsStore(context: Context) {
         budgetTabungan = _budgetTabungan.value,
         savingsTarget = _savingsTarget.value,
         monthlyIncome = _monthlyIncome.value,
+        paydayDay = _paydayDay.value,
         displayName = _displayName.value,
         defaultCurrency = _defaultCurrency.value
     )
@@ -103,6 +115,7 @@ class SettingsStore(context: Context) {
         setBudgetTabungan(snapshot.budgetTabungan)
         setSavingsTarget(snapshot.savingsTarget)
         setMonthlyIncome(snapshot.monthlyIncome)
+        setPaydayDay(snapshot.paydayDay)
         setDisplayName(snapshot.displayName)
         setDefaultCurrency(snapshot.defaultCurrency)
     }
@@ -114,6 +127,7 @@ class SettingsStore(context: Context) {
         _budgetTabungan.value = 700_000L
         _savingsTarget.value = 3_000_000L
         _monthlyIncome.value = 1_000_000L
+        _paydayDay.value = 0
         _onboardingDone.value = false
         _lastCategory.value = null
         _lastWalletId.value = 0L
@@ -132,6 +146,7 @@ class SettingsStore(context: Context) {
         const val KEY_BUDGET_TABUNGAN = "budget_tabungan"
         const val KEY_SAVINGS_TARGET = "savings_target"
         const val KEY_MONTHLY_INCOME = "monthly_income"
+        const val KEY_PAYDAY_DAY = "payday_day"
         const val KEY_ONBOARDING_DONE = "onboarding_done"
         const val KEY_LAST_CATEGORY = "last_category"
         const val KEY_LAST_WALLET_ID = "last_wallet_id"

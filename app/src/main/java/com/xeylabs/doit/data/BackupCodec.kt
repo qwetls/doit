@@ -146,6 +146,7 @@ object BackupCodec {
         put("budgetTabungan", settings.budgetTabungan)
         put("savingsTarget", settings.savingsTarget)
         put("monthlyIncome", settings.monthlyIncome)
+        put("paydayDay", settings.paydayDay)
         put("displayName", settings.displayName)
         put("defaultCurrency", settings.defaultCurrency)
     }
@@ -257,6 +258,7 @@ object BackupCodec {
         budgetTabungan = obj.optLong("budgetTabungan", 700_000L),
         savingsTarget = obj.optLong("savingsTarget", 3_000_000L),
         monthlyIncome = obj.optLong("monthlyIncome", 1_000_000L),
+        paydayDay = obj.optInt("paydayDay", 0),
         displayName = obj.optString("displayName", "Adrien"),
         defaultCurrency = obj.optString("defaultCurrency", "IDR")
     )

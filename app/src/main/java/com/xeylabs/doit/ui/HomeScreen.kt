@@ -64,6 +64,7 @@ import com.xeylabs.doit.ui.theme.WarningAmber
 import com.xeylabs.doit.viewmodel.MainViewModel
 import com.xeylabs.doit.viewmodel.UpdateViewModel
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
@@ -371,6 +372,30 @@ fun HomeScreen(
                     Text("Bayar")
                 }
             }
+        }
+
+        val paydayDay = state.paydayDay
+        if (paydayDay > 0) {
+            val today = LocalDate.now()
+            val thisMonth = YearMonth.from(today)
+            val thisMonthPayday = thisMonth.atDay(minOf(paydayDay, thisMonth.lengthOfMonth()))
+            val nextPayday = if (!thisMonthPayday.isBefore(today)) {
+                thisMonthPayday
+            } else {
+                val nextMonth = thisMonth.plusMonths(1)
+                nextMonth.atDay(minOf(paydayDay, nextMonth.lengthOfMonth()))
+            }
+            val daysLeft = ChronoUnit.DAYS.between(today, nextPayday)
+            val paydayText = "Gajian tanggal $paydayDay" + when {
+                daysLeft == 0L -> " · Gajian hari ini"
+                daysLeft == 1L -> " · 1 hari lagi"
+                else -> " · $daysLeft hari lagi"
+            }
+            Text(
+                text = paydayText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
 
         Row(

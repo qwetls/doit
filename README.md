@@ -2,11 +2,11 @@
 
 Aplikasi pencatat uang yang ringan — money management untuk gaji Rp1.000.000/bulan.
 
-**v1.9.0 — Tombol pensil di semua yang bisa diubah:**
-- Pensil di tiap pos anggaran tetap (Belanja harian, Dana darurat, Tabungan) — ketuk, isi jumlah baru, simpan; form "Ubah anggaran" kini hanya untuk Pemasukan bulanan.
-- Pensil di tiap kartu dompet (di samping tombol hapus) — membuka dialog ubah dompet.
-- Pensil di tiap transaksi terbaru di Beranda — edit langsung tanpa buka Riwayat; hapus tetap hanya di Riwayat.
-- Tanpa perubahan database (tetap v6).
+**v1.10.0 — Tabungan bisa dihapus + tanggal gajian:**
+- Target tabungan utama (Laptop/UTAMA) kini bisa dihapus; target tertua yang tersisa otomatis jadi UTAMA; hapus semua target aman (state kosong).
+- Tanggal gajian di Akun → Pemasukan bulanan (1-31, kosongkan kalau belum diatur); Beranda menampilkan hitung mundur ke gajian; teks patokan di Anggaran kini memakai angka gaji sendiri, bukan Rp1.000.000.
+- Perbaikan bug anggaran: Sisa Anggaran Bulanan sempat turun saat tambah pemasukan (tabungan bersih ikut dihitung sebagai terpakai) — sekarang hanya belanja yang mengurangi sisa anggaran.
+- Tanggal gajian ikut di cadangan JSON; tanpa perubahan database (tetap v6).
 
 **v1.7.0 — Samakan persis fitur + UI contoh FluxCash:**
 - Lampiran Struk foto di Catat Transaksi (tombol "Unggah Foto Struk" + thumbnail, tersimpan internal, tampil juga saat ubah transaksi, ikut terhapus saat transaksi dihapus).

@@ -69,14 +69,14 @@ fun BudgetSection(viewModel: MainViewModel) {
     val customSpent = positions
         .filter { it.category != Category.BELANJA.name && it.category != Category.DARURAT.name }
         .sumOf { monthSpent[it.category] ?: 0L }
-    val totalBudget = state.budgetBelanja + state.budgetDarurat + state.budgetTabungan + customTotal
-    val totalUsed = state.belanjaSpent + state.daruratSpent + savedThisMonth + customSpent
+    val totalBudget = state.budgetBelanja + state.budgetDarurat + customTotal
+    val totalUsed = state.belanjaSpent + state.daruratSpent + customSpent
     val totalRemaining = (totalBudget - totalUsed).coerceAtLeast(0)
     val totalPct = if (totalBudget > 0) (totalUsed * 100 / totalBudget).toInt() else 0
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(
-            "Patokan dari gaji Rp1.000.000: 200rb belanja, 100rb darurat, 700rb tabungan. Ketuk tombol pensil di tiap pos untuk mengubahnya.",
+            "Patokan dari gaji " + formatRupiah(state.monthlyIncome) + ": " + formatRupiah(state.budgetBelanja) + " belanja, " + formatRupiah(state.budgetDarurat) + " darurat, " + formatRupiah(state.budgetTabungan) + " tabungan. Ketuk tombol pensil di tiap pos untuk mengubahnya.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

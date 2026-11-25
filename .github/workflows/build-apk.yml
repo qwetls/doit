@@ -78,13 +78,12 @@ jobs:
           VERSION_NAME: ${{ steps.apk.outputs.version }}
         run: |
           cat > RELEASE_NOTES.md <<'EOF'
-          ## do.it v1.9.0 — Tombol pensil di semua yang bisa diubah
+          ## do.it v1.10.0 — Tabungan bisa dihapus + tanggal gajian
 
-          Kalau mau ubah sesuatu, sekarang tinggal ketuk tombol pensilnya — tidak perlu menebak mana yang bisa diketuk:
-          - **Anggaran tetap (Anggaran → Pos Anggaran):** Belanja harian, Dana darurat, dan Tabungan masing-masing punya tombol pensil — ketuk, isi jumlah baru, simpan. Form "Ubah anggaran" di bawah kini hanya untuk Pemasukan bulanan.
-          - **Dompet (Anggaran → Akun & Sumber Dana):** tiap kartu dompet kini punya tombol pensil di samping tombol hapus — membuka dialog ubah dompet yang sama seperti ketuk kartu.
-          - **Transaksi terbaru (Beranda):** tiap baris kini punya tombol pensil — bisa diedit langsung dari Beranda, tanpa harus buka Riwayat dulu. Hapus tetap hanya di Riwayat.
-          - Yang lain sudah punya pensil sejak dulu (pos anggaran kustom, target tabungan, jadwal rutin, utang/piutang, tagihan, kategori kustom, transaksi di Riwayat) — tidak berubah.
+          - **Tabungan bisa edit + hapus (Rencana):** target tabungan utama (Laptop, berlabel UTAMA) kini bisa dihapus seperti target lainnya — tombol tempat sampah tampil di semua kartu target. Kalau target utama dihapus, target tertua yang tersisa otomatis naik jadi UTAMA supaya proyeksi tetap jalan. Hapus semua target satu per satu juga aman, aplikasi menampilkan state kosong tanpa crash.
+          - **Tanggal gajian (Akun → Pemasukan bulanan):** tidak ada lagi patokan gaji Rp1.000.000 — isi gajimu sendiri, dan isi tanggal berapa gajimu turun tiap bulan (1-31, kosongkan kalau belum diatur). Beranda menampilkan hitung mundur ("Gajian tanggal 25 · 6 hari lagi", atau "Gajian hari ini" pas tanggalnya). Teks patokan di Anggaran kini memakai angka gajimu yang sebenarnya.
+          - **Perbaikan bug anggaran:** "Sisa Anggaran Bulanan" sempat TURUN saat tambah pemasukan — penyebabnya tabungan bersih (pemasukan − pengeluaran) ikut dihitung sebagai anggaran terpakai. Sekarang sisa anggaran hanya menghitung anggaran belanja (Belanja + Darurat + pos kustom) dikurangi belanja di pos itu; tabungan bukan pengeluaran, jadi tambah pemasukan tidak lagi mengubah sisa anggaran. Baris Tabungan tetap menampilkan progres nabung seperti biasa.
+          - Tanggal gajian ikut tersimpan di cadangan JSON (ekspor/pulihkan), dan cadangan lama tanpa field ini tetap bisa dipulihkan.
 
           Tanpa perubahan database (tetap v6) — data lama aman.
 

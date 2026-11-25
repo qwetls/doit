@@ -88,6 +88,10 @@ fun ProfileScreen(
     var incomeText by remember(monthlyIncome.monthlyIncome) {
         mutableStateOf(monthlyIncome.monthlyIncome.toString())
     }
+    var paydayText by remember(monthlyIncome.paydayDay) {
+        mutableStateOf(if (monthlyIncome.paydayDay > 0) monthlyIncome.paydayDay.toString() else "")
+    }
+    var paydayError by remember { mutableStateOf("") }
     var savedNote by remember { mutableStateOf("") }
     var showResetStep1 by remember { mutableStateOf(false) }
     var showResetStep2 by remember { mutableStateOf(false) }
@@ -221,8 +225,33 @@ fun ProfileScreen(
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(12.dp))
+            OutlinedTextField(
+                value = paydayText,
+                onValueChange = { paydayText = it.filter { ch -> ch.isDigit() } },
+                label = { Text("Tanggal gajian (1-31)") },
+                supportingText = { Text("Tanggal berapa gajimu turun tiap bulan — kosongkan kalau belum diatur") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            if (paydayError.isNotBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    paydayError,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
             Button(onClick = {
+                val payday = if (paydayText.isBlank()) 0 else paydayText.toIntOrNull()
+                if (payday == null || payday !in 0..31) {
+                    paydayError = "Tanggal gajian harus 1-31, atau kosongkan kalau belum diatur"
+                    return@Button
+                }
+                paydayError = ""
                 viewModel.setMonthlyIncome(incomeText.toLongOrNull() ?: 0L)
+                viewModel.setPaydayDay(payday)
                 savedNote = "Pemasukan bulanan disimpan."
             }) {
                 Text("Simpan")

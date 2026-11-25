@@ -78,14 +78,9 @@ jobs:
           VERSION_NAME: ${{ steps.apk.outputs.version }}
         run: |
           cat > RELEASE_NOTES.md <<'EOF'
-          ## do.it v1.5.0 — Desain minimalis: Beranda hanya tiga jawaban
+          ## do.it v1.5.1 — Kembali ke desain v1.4.0 (Beranda lengkap)
 
-          - **Beranda minimalis:**
-            - Yang tinggal: total saldo besar + baris Masuk / Keluar / Sisa bulan ini, tombol besar **+ Pemasukan** / **+ Pengeluaran**, satu baris tipis progres tabungan laptop ("RpX dari Rp3jt", tanpa cincin, tanpa tanggal proyeksi), dan 5 transaksi terakhir (ketuk "Lihat semua" → Riwayat).
-            - Yang pindah, bukan dihapus: grafik batang 7 hari / 6 bulan dan donut per kategori pindah ke Laporan; cincin anggaran sudah tampil sebagai baris teks di Rencana ("Belanja Rp150rb / Rp200rb"); kartu Perhatian jadi satu baris kecil di bawah saldo, hanya muncul kalau ada tagihan jatuh tempo ≤7 hari / terlambat; kartu ringkasan dompet di Beranda dihapus (saldo per dompet tetap di tab Dompet).
-            - Insight otomatis pindah ke Laporan.
-          - **Tidak berubah:** 5 tab tetap, warna violet tetap, data lokal tetap, tanpa login, tanpa server.
-          - **Tanpa perubahan database:** skema tetap v4, tanpa migrasi — update dari v1.4.0 aman, data lama utuh.
+          Desain minimalis v1.5.0 dibatalkan — Beranda kembali lengkap seperti v1.4.0: grafik 7 hari / 6 bulan, donut per kategori, cincin anggaran, kartu target tabungan, kartu Perhatian, dan kartu ringkasan dompet. Semua fitur v1.4.0 tetap ada (dompet Rp & Dollar, Paylater, Profil & Pengaturan, migrasi database v4).
 
           Published signed release and debug APKs.
           EOF
@@ -95,7 +90,7 @@ jobs:
             "${{ steps.apk.outputs.release_path }}.sha256" \
             "${{ steps.apk.outputs.debug_path }}" \
             "${{ steps.apk.outputs.debug_path }}.sha256" \
-            --title "do.it $RELEASE_TAG (Minimalis — Beranda tiga jawaban, grafik & donut ke Laporan)" \
+            --title "do.it $RELEASE_TAG (Kembali ke desain v1.4.0 — Beranda lengkap)" \
             --notes-file RELEASE_NOTES.md \
             --latest
 

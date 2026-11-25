@@ -10,31 +10,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.TrendingUp
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.xeylabs.doit.data.Currency
 import com.xeylabs.doit.ui.theme.ExpenseRed
 import com.xeylabs.doit.ui.theme.IncomeGreen
-import com.xeylabs.doit.ui.theme.VioletAccent
-import com.xeylabs.doit.ui.theme.WarningAmber
-import com.xeylabs.doit.viewmodel.InsightKind
 import com.xeylabs.doit.viewmodel.MainViewModel
 
 /**
@@ -46,7 +33,6 @@ fun ReportsScreen(viewModel: MainViewModel) {
     val month by viewModel.selectedMonth.collectAsState()
     val report by viewModel.reportState.collectAsState()
     val state by viewModel.uiState.collectAsState()
-    var chartRange by remember { mutableStateOf(1) }
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -60,6 +46,7 @@ fun ReportsScreen(viewModel: MainViewModel) {
             onNext = { viewModel.nextMonth() }
         )
 
+        // ---------- Arus kas ----------
         DoitCard {
             SectionTitle("Arus kas " + formatMonth(month))
             Spacer(modifier = Modifier.height(12.dp))
@@ -71,6 +58,7 @@ fun ReportsScreen(viewModel: MainViewModel) {
                 if (report.monthNet >= 0) IncomeGreen else ExpenseRed,
                 Currency.fromCode(report.defaultCurrency)
             )
+            // Mata uang lain tampil terpisah — total tidak dicampur tanpa kurs.
             val otherCodes = (report.monthIncomeByCurrency.keys + report.monthExpenseByCurrency.keys)
                 .filter { it != report.defaultCurrency }
             otherCodes.forEach { code ->
@@ -85,78 +73,20 @@ fun ReportsScreen(viewModel: MainViewModel) {
             }
         }
 
-        if (state.insights.isNotEmpty()) {
-            DoitCard {
-                SectionTitle("Insight")
-                Spacer(modifier = Modifier.height(8.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    state.insights.forEach { insight ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            val (icon, tint) = when (insight.kind) {
-                                InsightKind.GOOD -> Icons.Filled.CheckCircle to IncomeGreen
-                                InsightKind.WARN -> Icons.Filled.Warning to WarningAmber
-                                InsightKind.INFO -> Icons.Filled.TrendingUp to VioletAccent
-                            }
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = null,
-                                tint = tint,
-                                modifier = Modifier.padding(end = 8.dp)
-                            )
-                            Text(
-                                text = insight.text,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
+        // ---------- Grafik pengeluaran 6 bulan ----------
         DoitCard {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                SectionTitle(if (chartRange == 0) "Pengeluaran 7 hari terakhir" else "Pengeluaran 6 bulan terakhir")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = chartRange == 0,
-                        onClick = { chartRange = 0 },
-                        label = { Text("7 hari") }
-                    )
-                    FilterChip(
-                        selected = chartRange == 1,
-                        onClick = { chartRange = 1 },
-                        label = { Text("6 bulan") }
-                    )
-                }
-            }
+            SectionTitle("Pengeluaran 6 bulan terakhir")
             Spacer(modifier = Modifier.height(12.dp))
-            if (chartRange == 0) {
-                BarChart(bars = state.last7Days.toDayBars())
-            } else {
-                BarChart(bars = state.monthlyBars.toMonthBars())
-            }
+            BarChart(bars = state.monthlyBars.toMonthBars())
             Spacer(modifier = Modifier.height(8.dp))
-            val chartTotal = if (chartRange == 0) {
-                state.last7Days.sumOf { it.amount }
-            } else {
-                state.monthlyBars.sumOf { it.amount }
-            }
             Text(
-                text = if (chartRange == 0) {
-                    "Total 7 hari: " + formatMoney(chartTotal, Currency.fromCode(report.defaultCurrency))
-                } else {
-                    "Total 6 bulan: " + formatMoney(chartTotal, Currency.fromCode(report.defaultCurrency))
-                },
+                text = "Total 6 bulan: " + formatMoney(state.monthlyBars.sumOf { it.amount }, Currency.fromCode(report.defaultCurrency)),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
+        // ---------- Per kategori ----------
         DoitCard {
             SectionTitle("Per kategori")
             Spacer(modifier = Modifier.height(12.dp))
@@ -178,6 +108,7 @@ fun ReportsScreen(viewModel: MainViewModel) {
             }
         }
 
+        // ---------- Per sumber pemasukan ----------
         DoitCard {
             SectionTitle("Per sumber pemasukan")
             Spacer(modifier = Modifier.height(12.dp))
@@ -194,6 +125,7 @@ fun ReportsScreen(viewModel: MainViewModel) {
             }
         }
 
+        // ---------- Per dompet ----------
         DoitCard {
             SectionTitle("Per dompet")
             Spacer(modifier = Modifier.height(12.dp))
@@ -215,6 +147,7 @@ fun ReportsScreen(viewModel: MainViewModel) {
             }
         }
 
+        // ---------- Ekspor ----------
         DoitCard {
             SectionTitle("Ekspor")
             Spacer(modifier = Modifier.height(12.dp))

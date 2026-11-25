@@ -18,13 +18,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.xeylabs.doit.ui.theme.Emerald
 import com.xeylabs.doit.ui.theme.ExpenseRed
-import com.xeylabs.doit.ui.theme.VioletAccent
 import com.xeylabs.doit.ui.theme.WarningAmber
 import com.xeylabs.doit.viewmodel.MainViewModel
 
@@ -37,6 +38,12 @@ fun BudgetSection(viewModel: MainViewModel) {
     var tabunganText by remember(state.budgetTabungan) { mutableStateOf(state.budgetTabungan.toString()) }
     var savedMessage by remember { mutableStateOf("") }
 
+    val savedThisMonth = (state.monthIncome - state.monthExpense).coerceAtLeast(0)
+    val totalBudget = state.budgetBelanja + state.budgetDarurat + state.budgetTabungan
+    val totalUsed = state.belanjaSpent + state.daruratSpent + savedThisMonth
+    val totalRemaining = (totalBudget - totalUsed).coerceAtLeast(0)
+    val totalPct = if (totalBudget > 0) (totalUsed * 100 / totalBudget).toInt() else 0
+
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(
             "Patokan dari gaji Rp1.000.000: 200rb belanja, 100rb darurat, 700rb tabungan. Ubah sesuai kebutuhanmu.",
@@ -45,14 +52,80 @@ fun BudgetSection(viewModel: MainViewModel) {
         )
 
         DoitCard {
-            SectionTitle("Pemakaian bulan ini")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column {
+                    Text(
+                        "SISA ANGGARAN BULANAN",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        formatRupiah(totalRemaining),
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    StatusPill(text = "$totalPct% Terpakai", color = Emerald)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        if (totalRemaining > 0) "Aman & Terkendali" else "Anggaran habis",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(12.dp))
-            UsageRow("Belanja harian", state.belanjaSpent, state.budgetBelanja)
+            LinearProgressIndicator(
+                progress = { (totalUsed.toFloat() / totalBudget.toFloat().coerceAtLeast(1f)).coerceIn(0f, 1f) },
+                modifier = Modifier.fillMaxWidth().height(10.dp),
+                color = Emerald
+            )
             Spacer(modifier = Modifier.height(12.dp))
-            UsageRow("Dana darurat", state.daruratSpent, state.budgetDarurat)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "Terpakai: " + formatRupiah(totalUsed),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "Total: " + formatRupiah(totalBudget),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        DoitCard {
+            SectionTitle("Pos Anggaran")
             Spacer(modifier = Modifier.height(12.dp))
-            val savedThisMonth = (state.monthIncome - state.monthExpense).coerceAtLeast(0)
-            UsageRow("Tabungan (terkumpul bulan ini)", savedThisMonth, state.budgetTabungan)
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                UsageRow(
+                    label = "Belanja harian",
+                    spent = state.belanjaSpent,
+                    budget = state.budgetBelanja,
+                    isSavings = false
+                )
+                UsageRow(
+                    label = "Dana darurat",
+                    spent = state.daruratSpent,
+                    budget = state.budgetDarurat,
+                    isSavings = false
+                )
+                UsageRow(
+                    label = "Tabungan (terkumpul bulan ini)",
+                    spent = savedThisMonth,
+                    budget = state.budgetTabungan,
+                    isSavings = true
+                )
+            }
         }
 
         DoitCard {
@@ -92,38 +165,77 @@ fun BudgetSection(viewModel: MainViewModel) {
 }
 
 @Composable
-private fun UsageRow(label: String, spent: Long, budget: Long) {
+private fun UsageRow(label: String, spent: Long, budget: Long, isSavings: Boolean) {
     val ratio = if (budget > 0) spent.toFloat() / budget.toFloat() else 0f
-    val color: Color = when {
+    val pct = (ratio.coerceIn(0f, 1f) * 100).toInt()
+    val status: Pair<String, Color> = when {
+        ratio >= 1f && isSavings -> "Selesai" to Emerald
+        ratio >= 1f -> "Melewati" to ExpenseRed
+        ratio >= 0.8f -> "Hampir Habis" to WarningAmber
+        isSavings -> "Menabung" to Emerald
+        else -> "Stabil" to Emerald
+    }
+    val barColor: Color = when {
+        ratio >= 1f && isSavings -> Emerald
         ratio >= 1f -> ExpenseRed
         ratio >= 0.8f -> WarningAmber
-        else -> VioletAccent
+        else -> Emerald
     }
-    val pct = (ratio.coerceIn(0f, 1f) * 100).toInt()
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(label, style = MaterialTheme.typography.bodyMedium)
-            Text(
-                formatRupiah(spent) + " / " + formatRupiah(budget) + " · $pct%",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium
-            )
+    val remaining = budget - spent
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CategoryIconTile(
+                    category = when (label) {
+                        "Belanja harian" -> com.xeylabs.doit.data.Category.BELANJA
+                        "Dana darurat" -> com.xeylabs.doit.data.Category.DARURAT
+                        else -> com.xeylabs.doit.data.Category.LAIN_KELUAR
+                    },
+                    size = 40
+                )
+                Column(modifier = Modifier.padding(start = 12.dp)) {
+                    Text(label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Sisa " + formatRupiah(remaining.coerceAtLeast(0)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    formatRupiah(spent),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "dari " + formatRupiah(budget),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
         LinearProgressIndicator(
-            progress = ratio.coerceIn(0f, 1f),
+            progress = { ratio.coerceIn(0f, 1f) },
             modifier = Modifier.fillMaxWidth().height(6.dp),
-            color = color
+            color = barColor
         )
-        val remaining = budget - spent
-        Text(
-            text = when {
-                remaining < 0 -> "Melewati anggaran " + formatRupiah(-remaining)
-                ratio >= 0.8f -> "Hampir habis — sisa " + formatRupiah(remaining)
-                else -> "Sisa " + formatRupiah(remaining)
-            },
-            style = MaterialTheme.typography.bodySmall,
-            color = if (remaining < 0) ExpenseRed else MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "$pct% dialokasikan",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            StatusPill(text = status.first, color = status.second)
+        }
     }
 }
 

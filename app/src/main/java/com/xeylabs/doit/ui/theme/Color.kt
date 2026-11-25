@@ -3,25 +3,35 @@ package com.xeylabs.doit.ui.theme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.ui.graphics.Color
 
-val VioletAccent = Color(0xFF8B5CF6)
-val VioletAccentDark = Color(0xFF7C3AED)
-val BackgroundDark = Color(0xFF0B0B0F)
-val SurfaceDark = Color(0xFF15151C)
-val SurfaceVariantDark = Color(0xFF1E1E28)
-val TextPrimary = Color(0xFFF5F5F7)
-val TextMuted = Color(0xFF9A9AA5)
-val IncomeGreen = Color(0xFF4ADE80)
-val ExpenseRed = Color(0xFFF87171)
+val Emerald = Color(0xFF4EDEA3)
+val EmeraldAccent = Emerald
+val EmeraldStrong = Color(0xFF10B981)
+val EmeraldDeep = Color(0xFF059669)
+val EmeraldLight = Color(0xFF6EE7B7)
+val EmeraldPale = Color(0xFFA7F3D0)
+val OnEmerald = Color(0xFF003824)
+val BackgroundDark = Color(0xFF0E141C)
+val SurfaceLowest = Color(0xFF090F16)
+val SurfaceDark = Color(0xFF161C24)
+val SurfaceContainer = Color(0xFF1A2028)
+val SurfaceHigh = Color(0xFF242A33)
+val SurfaceHighest = Color(0xFF2F353E)
+val SurfaceVariantDark = SurfaceHigh
+val TextPrimary = Color(0xFFDDE3EE)
+val TextMuted = Color(0xFFBBCABF)
+val OutlineMuted = Color(0xFF86948A)
+val IncomeGreen = Emerald
+val ExpenseRed = Color(0xFFFFB2B7)
+val OutflowStrong = Color(0xFFF43F5E)
 val WarningAmber = Color(0xFFFBBF24)
-val CategoryBlue = Color(0xFF60A5FA)
-val CategoryGray = Color(0xFF9A9AA5)
-val HeroViolet = Color(0xFF1B1530)
-val CardBorder = Color(0x14FFFFFF)
+val CategoryGray = Color(0xFF86948A)
+val HeroEmerald = Color(0xFF10231B)
+val CardBorder = Color(0xFF1E293B)
 
 val categoryColors: Map<String, Color> = mapOf(
-    "BELANJA" to VioletAccent,
-    "MAKAN" to IncomeGreen,
-    "TRANSPORT" to CategoryBlue,
+    "BELANJA" to EmeraldStrong,
+    "MAKAN" to Color(0xFF34D399),
+    "TRANSPORT" to EmeraldLight,
     "DARURAT" to WarningAmber,
     "LAIN_KELUAR" to CategoryGray
 )
@@ -29,14 +39,17 @@ val categoryColors: Map<String, Color> = mapOf(
 fun categoryColor(name: String): Color = categoryColors[name] ?: CategoryGray
 
 val DoitColorScheme = darkColorScheme(
-    primary = VioletAccent,
-    onPrimary = Color.White,
-    secondary = VioletAccentDark,
+    primary = Emerald,
+    onPrimary = OnEmerald,
+    primaryContainer = EmeraldStrong,
+    onPrimaryContainer = Color(0xFF00422B),
+    secondary = EmeraldLight,
     background = BackgroundDark,
     onBackground = TextPrimary,
     surface = SurfaceDark,
     onSurface = TextPrimary,
-    surfaceVariant = SurfaceVariantDark,
+    surfaceVariant = SurfaceHigh,
     onSurfaceVariant = TextMuted,
+    outline = OutlineMuted,
     error = ExpenseRed
 )

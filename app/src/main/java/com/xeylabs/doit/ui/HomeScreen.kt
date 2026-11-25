@@ -15,15 +15,25 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.NorthEast
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.SouthWest
+import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -39,103 +49,152 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.xeylabs.doit.DoitTab
 import com.xeylabs.doit.data.Currency
 import com.xeylabs.doit.data.TxnType
-import com.xeylabs.doit.data.WalletType
+import com.xeylabs.doit.ui.theme.Emerald
 import com.xeylabs.doit.ui.theme.ExpenseRed
-import com.xeylabs.doit.ui.theme.HeroViolet
+import com.xeylabs.doit.ui.theme.HeroEmerald
 import com.xeylabs.doit.ui.theme.IncomeGreen
-import com.xeylabs.doit.ui.theme.VioletAccent
 import com.xeylabs.doit.ui.theme.WarningAmber
-import com.xeylabs.doit.ui.theme.categoryColor
-import com.xeylabs.doit.viewmodel.InsightKind
 import com.xeylabs.doit.viewmodel.MainViewModel
 import com.xeylabs.doit.viewmodel.UpdateViewModel
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
+import java.util.Locale
 
 @Composable
 fun HomeScreen(
     viewModel: MainViewModel,
     updateViewModel: UpdateViewModel,
     onNavigate: (DoitTab) -> Unit,
-    onOpenProfile: () -> Unit,
-    onQuickAdd: (TxnType) -> Unit
+    onQuickAdd: (TxnType) -> Unit,
+    onShowHistory: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
     val month by viewModel.selectedMonth.collectAsState()
     val displayName by viewModel.displayName.collectAsState()
     val scrollState = rememberScrollState()
-    var chartRange by remember { mutableStateOf(0) }
+    var balanceHidden by remember { mutableStateOf(false) }
 
     val defaultCurrency = Currency.fromCode(state.defaultCurrency)
     val balance = state.monthIncome - state.monthExpense
-    val defaultGoal = state.goals.firstOrNull { it.isDefault } ?: state.goals.firstOrNull()
+    val net = state.monthIncome - state.monthExpense
+    val prevNet = state.prevMonthIncome - state.prevMonthExpense
+    val netChangeText = if (prevNet == 0L) null else String.format(
+        Locale.US, "%+.1f%%", (net - prevNet) * 100.0 / prevNet.toDouble()
+    )
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        UpdateCard(updateViewModel)
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // Profil paling kiri: avatar inisial, ketuk untuk buka Profil & Pengaturan.
-                IconButton(
-                    onClick = onOpenProfile,
-                    modifier = Modifier.size(40.dp).clip(CircleShape).background(HeroViolet)
-                ) {
-                    Text(
-                        text = displayName.trim().firstOrNull()?.uppercase() ?: "A",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    "Halo, $displayName",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            MonthStepper(
-                month = month,
-                onPrev = { viewModel.prevMonth() },
-                onNext = { viewModel.nextMonth() }
-            )
+        FluxHeader(subtitle = "Beranda", displayName = displayName) {
+            onNavigate(DoitTab.AKUN)
         }
 
-        // Hero ala app bank: nominal saldo besar + tombol tambah cepat.
-        DoitCard(containerColor = HeroViolet) {
+        UpdateCard(updateViewModel)
+
+        DoitCard(containerColor = HeroEmerald) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clip(RoundedCornerShape(999.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                ) {
+                    IconButton(
+                        onClick = { viewModel.prevMonth() },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.ChevronLeft,
+                            contentDescription = "Bulan sebelumnya",
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier.size(6.dp).clip(CircleShape).background(Emerald)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            "Bulan Ini · " + formatMonth(month),
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    }
+                    IconButton(
+                        onClick = { viewModel.nextMonth() },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.ChevronRight,
+                            contentDescription = "Bulan berikutnya",
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+                IconButton(onClick = { balanceHidden = !balanceHidden }) {
+                    Icon(
+                        if (balanceHidden) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                        contentDescription = if (balanceHidden) "Tampilkan saldo" else "Sembunyikan saldo",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
             Text(
-                "Total saldo",
-                style = MaterialTheme.typography.bodyMedium,
+                "Total Saldo Bersih",
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            AnimatedMoney(
-                amount = state.totalBalance,
-                style = MaterialTheme.typography.displayLarge,
-                currency = defaultCurrency
-            )
-            Spacer(modifier = Modifier.height(12.dp))
+            if (balanceHidden) {
+                Text(
+                    "••••••••",
+                    style = MaterialTheme.typography.displayLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            } else {
+                AnimatedMoney(
+                    amount = state.totalBalance,
+                    style = MaterialTheme.typography.displayLarge,
+                    currency = defaultCurrency
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            if (netChangeText != null) {
+                val up = net >= prevNet
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    StatusPill(
+                        text = netChangeText + " vs bulan lalu",
+                        color = if (up) IncomeGreen else ExpenseRed
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(
+                        imageVector = if (up) Icons.Filled.TrendingUp else Icons.Filled.TrendingDown,
+                        contentDescription = null,
+                        tint = if (up) IncomeGreen else ExpenseRed,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                HeroMini("Masuk", state.monthIncome, IncomeGreen, defaultCurrency)
-                HeroMini("Keluar", state.monthExpense, ExpenseRed, defaultCurrency)
-                HeroMini("Sisa bulan ini", balance, MaterialTheme.colorScheme.onSurface, defaultCurrency)
+                HeroMini("Masuk", state.monthIncome, IncomeGreen, defaultCurrency, balanceHidden)
+                HeroMini("Keluar", state.monthExpense, ExpenseRed, defaultCurrency, balanceHidden)
+                HeroMini("Sisa bulan ini", balance, MaterialTheme.colorScheme.onSurface, defaultCurrency, balanceHidden)
             }
-            // Mata uang lain (Dollar) tampil terpisah — total tidak pernah
-            // dicampur antar mata uang karena tanpa kurs tidak ada angka benar.
             val otherCurrencies = state.totalBalanceByCurrency.keys.filter { it != state.defaultCurrency }
             otherCurrencies.forEach { code ->
                 val currency = Currency.fromCode(code)
@@ -159,7 +218,10 @@ fun HomeScreen(
                 Button(
                     onClick = { onQuickAdd(TxnType.INCOME) },
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = IncomeGreen)
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Emerald,
+                        contentColor = Color(0xFF003824)
+                    )
                 ) {
                     Icon(Icons.Filled.Add, contentDescription = null)
                     Spacer(modifier = Modifier.width(4.dp))
@@ -168,7 +230,10 @@ fun HomeScreen(
                 Button(
                     onClick = { onQuickAdd(TxnType.EXPENSE) },
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed)
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ExpenseRed,
+                        contentColor = Color(0xFF690005)
+                    )
                 ) {
                     Icon(Icons.Filled.Add, contentDescription = null)
                     Spacer(modifier = Modifier.width(4.dp))
@@ -177,374 +242,131 @@ fun HomeScreen(
             }
         }
 
-        if (state.wallets.isNotEmpty()) {
-            DoitCard(modifier = Modifier.clickable { onNavigate(DoitTab.DOMPET) }) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            InOutCard(
+                label = "Pemasukan",
+                amount = state.monthIncome,
+                prevAmount = state.prevMonthIncome,
+                isIncome = true,
+                currency = defaultCurrency,
+                hidden = balanceHidden,
+                modifier = Modifier.weight(1f)
+            )
+            InOutCard(
+                label = "Pengeluaran",
+                amount = state.monthExpense,
+                prevAmount = state.prevMonthExpense,
+                isIncome = false,
+                currency = defaultCurrency,
+                hidden = balanceHidden,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        val netPoints = state.last7DaysNet.map { it.amount }
+        val netLabels = state.last7DaysNet.map { it.label }
+        if (netPoints.isNotEmpty()) {
+            val peakIndex = netPoints.indexOf(netPoints.max())
+            val peakValue = netPoints.max()
+            DoitCard {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    SectionTitle("Dompet")
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        SectionTitle("Tren Arus Kas")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        StatusPill(text = "7 Hari", color = Emerald)
+                    }
                     Text(
-                        "Kelola ›",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = VioletAccent
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "Total saldo",
-                        style = MaterialTheme.typography.bodyMedium,
+                        "Net Inflow",
+                        style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Text(
-                        formatMoney(state.totalBalance, defaultCurrency),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                state.wallets.forEach { walletBalance ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            walletBalance.wallet.name + " · " +
-                                WalletType.fromName(walletBalance.wallet.type).label,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Text(
-                            formatMoney(
-                                walletBalance.balance,
-                                Currency.fromCode(walletBalance.wallet.currency)
-                            ),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-                // Cash vs e-money (mata uang utama) — ketahuan cash berapa, e-money berapa.
-                val cashDc = state.cashByCurrency[state.defaultCurrency] ?: 0L
-                val emoneyDc = state.emoneyByCurrency[state.defaultCurrency] ?: 0L
-                val bankDc = state.bankByCurrency[state.defaultCurrency] ?: 0L
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    "Tunai " + formatMoney(cashDc, defaultCurrency) +
-                        " · E-money " + formatMoney(emoneyDc, defaultCurrency) +
-                        " · Bank " + formatMoney(bankDc, defaultCurrency),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        // Perhatian: tagihan jatuh tempo ≤7 hari / terlambat + anggaran yang hampir/habis.
-        // Per-sumber pemasukan TIDAK di sini — hanya di Laporan.
-        val budgetAlerts = listOf(
-            "Belanja" to (state.belanjaSpent to state.budgetBelanja),
-            "Darurat" to (state.daruratSpent to state.budgetDarurat)
-        ).mapNotNull { (label, spentToBudget) ->
-            val (spent, budget) = spentToBudget
-            if (budget <= 0) return@mapNotNull null
-            val ratio = spent.toFloat() / budget.toFloat()
-            when {
-                ratio >= 1f -> "Anggaran $label sudah habis (lebih " + formatMoney(spent - budget, defaultCurrency) + ")"
-                ratio >= 0.8f -> "Anggaran $label hampir habis — sisa " + formatMoney(budget - spent, defaultCurrency)
-                else -> null
-            }
-        }
-        if (state.dueBills.isNotEmpty() || budgetAlerts.isNotEmpty()) {
-            DoitCard {
-                SectionTitle("Perhatian")
-                Spacer(modifier = Modifier.height(8.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    state.dueBills.forEach { due ->
-                        val today = LocalDate.now()
-                        val daysLeft = ChronoUnit.DAYS.between(today, due.dueDate)
-                        val statusText = when {
-                            due.overdue -> "Terlambat ${-daysLeft} hari"
-                            daysLeft == 0L -> "Jatuh tempo hari ini"
-                            else -> "Jatuh tempo dalam $daysLeft hari"
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth().clickable { onNavigate(DoitTab.RENCANA) },
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    due.bill.name,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    formatMoney(due.bill.amount, defaultCurrency) + " · " + statusText,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = if (due.overdue) ExpenseRed else WarningAmber
-                                )
-                            }
-                            TextButton(onClick = { viewModel.markBillPaid(due.bill) }) {
-                                Text("Bayar")
-                            }
-                        }
-                    }
-                    budgetAlerts.forEach { alertText ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth().clickable { onNavigate(DoitTab.RENCANA) },
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Warning,
-                                contentDescription = null,
-                                tint = WarningAmber,
-                                modifier = Modifier.padding(end = 8.dp)
-                            )
-                            Text(
-                                text = alertText,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Text(
-                                "Rencana ›",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = VioletAccent
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        if (state.insights.isNotEmpty()) {
-            DoitCard {
-                SectionTitle("Insight")
-                Spacer(modifier = Modifier.height(8.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    state.insights.forEach { insight ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            val (icon, tint) = when (insight.kind) {
-                                InsightKind.GOOD -> Icons.Filled.CheckCircle to IncomeGreen
-                                InsightKind.WARN -> Icons.Filled.Warning to WarningAmber
-                                InsightKind.INFO -> Icons.Filled.TrendingUp to VioletAccent
-                            }
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = null,
-                                tint = tint,
-                                modifier = Modifier.padding(end = 8.dp)
-                            )
-                            Text(
-                                text = insight.text,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        DoitCard {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                SectionTitle("Pengeluaran")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = chartRange == 0,
-                        onClick = { chartRange = 0 },
-                        label = { Text("7 hari") }
-                    )
-                    FilterChip(
-                        selected = chartRange == 1,
-                        onClick = { chartRange = 1 },
-                        label = { Text("6 bulan") }
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            if (chartRange == 0) {
-                BarChart(bars = state.last7Days.toDayBars())
-            } else {
-                BarChart(bars = state.monthlyBars.toMonthBars())
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            val chartTotal = if (chartRange == 0) {
-                state.last7Days.sumOf { it.amount }
-            } else {
-                state.monthlyBars.sumOf { it.amount }
-            }
-            Text(
-                text = "Total: " + formatMoney(chartTotal, defaultCurrency),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            TextButton(onClick = { onNavigate(DoitTab.LAPORAN) }) { Text("Lihat laporan ›") }
-        }
-
-        if (state.categoryBreakdown.isNotEmpty()) {
-            DoitCard {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    SectionTitle("Per kategori bulan ini")
-                    TextButton(onClick = { onNavigate(DoitTab.LAPORAN) }) { Text("Laporan ›") }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    DonutChart(
-                        slices = state.categoryBreakdown.toDonutSlices(),
-                        centerText = formatMoney(state.monthExpense, defaultCurrency)
-                    )
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.weight(1f).padding(start = 16.dp)
-                    ) {
-                        state.categoryBreakdown.forEach { item ->
-                            val pct = if (state.monthExpense > 0) {
-                                (item.amount * 100 / state.monthExpense).toInt()
-                            } else 0
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier.size(10.dp).clip(
-                                        androidx.compose.foundation.shape.CircleShape
-                                    ).background(categoryColor(item.category.name))
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = item.category.label,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Text(
-                                    text = "$pct%",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            Text(
-                                text = formatMoney(item.amount, defaultCurrency),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                if (peakValue != 0L) {
+                    val peakDate = LocalDate.now().minusDays((netPoints.size - 1 - peakIndex).toLong())
+                    val badgeText = peakDate.format(
+                        DateTimeFormatter.ofPattern("d MMM", Locale("in", "ID"))
+                    ) + ": " + (if (peakValue >= 0) "+" else "") + formatCompact(peakValue)
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Spacer(modifier = Modifier.weight(peakIndex.toFloat().coerceAtLeast(0.5f)))
+                        StatusPill(text = badgeText, color = Emerald)
+                        Spacer(modifier = Modifier.weight((netPoints.size - 1 - peakIndex).toFloat().coerceAtLeast(0.5f)))
                     }
+                    Spacer(modifier = Modifier.height(4.dp))
                 }
+                NetFlowChart(points = netPoints, labels = netLabels, peakIndex = peakIndex)
             }
         }
 
-        DoitCard {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            QuickAction(
+                icon = Icons.Filled.Send,
+                label = "Transfer",
+                modifier = Modifier.weight(1f),
+                onClick = { onQuickAdd(TxnType.TRANSFER) }
+            )
+            QuickAction(
+                icon = Icons.Filled.Payments,
+                label = "Tarik Kas",
+                modifier = Modifier.weight(1f),
+                onClick = { onQuickAdd(TxnType.EXPENSE) }
+            )
+            QuickAction(
+                icon = Icons.Filled.Category,
+                label = "Atur Pos",
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate(DoitTab.ANGGARAN) }
+            )
+            QuickAction(
+                icon = Icons.Filled.Download,
+                label = "Ekspor",
+                modifier = Modifier.weight(1f),
+                onClick = { viewModel.exportCsv() }
+            )
+        }
+
+        val firstDue = state.dueBills.firstOrNull()
+        if (firstDue != null) {
+            val today = LocalDate.now()
+            val daysLeft = ChronoUnit.DAYS.between(today, firstDue.dueDate)
+            val statusText = when {
+                firstDue.overdue -> "Terlambat ${-daysLeft} hari"
+                daysLeft == 0L -> "Jatuh tempo hari ini"
+                else -> "Jatuh tempo dalam $daysLeft hari"
+            }
+            val extra = if (state.dueBills.size > 1) " · +${state.dueBills.size - 1} lagi" else ""
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable { onNavigate(DoitTab.ANGGARAN) }
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                SectionTitle("Anggaran bulan ini")
-                TextButton(onClick = { onNavigate(DoitTab.RENCANA) }) { Text("Atur anggaran") }
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                val savedThisMonth = (state.monthIncome - state.monthExpense).coerceAtLeast(0)
-                BudgetRingItem(
-                    label = "Belanja",
-                    spent = state.belanjaSpent,
-                    budget = state.budgetBelanja,
-                    currency = defaultCurrency
+                Icon(
+                    Icons.Filled.Warning,
+                    contentDescription = null,
+                    tint = if (firstDue.overdue) ExpenseRed else WarningAmber,
+                    modifier = Modifier.size(18.dp)
                 )
-                BudgetRingItem(
-                    label = "Darurat",
-                    spent = state.daruratSpent,
-                    budget = state.budgetDarurat,
-                    currency = defaultCurrency
-                )
-                BudgetRingItem(
-                    label = "Tabungan",
-                    spent = savedThisMonth,
-                    budget = state.budgetTabungan,
-                    currency = defaultCurrency
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            val worstAlert = listOf(
-                state.belanjaSpent to state.budgetBelanja,
-                state.daruratSpent to state.budgetDarurat
-            ).firstOrNull { (spent, budget) -> budget > 0 && spent >= budget }
-            if (worstAlert != null) {
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Ada anggaran yang sudah habis atau terlampaui — cek Rencana untuk melihat penyebabnya.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = ExpenseRed
+                    text = firstDue.bill.name + " · " + statusText + extra,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f)
                 )
-            }
-        }
-
-        if (defaultGoal != null) {
-            DoitCard {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    SectionTitle("Tabungan ${defaultGoal.name}")
-                    TextButton(onClick = { onNavigate(DoitTab.RENCANA) }) { Text("Semua target") }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    val progress = if (defaultGoal.target > 0) {
-                        (defaultGoal.saved.toFloat() / defaultGoal.target.toFloat()).coerceIn(0f, 1f)
-                    } else 0f
-                    BudgetRing(
-                        progress = progress,
-                        color = VioletAccent,
-                        centerText = "${(progress * 100).toInt()}%",
-                        size = 96.dp
-                    )
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        AnimatedMoney(
-                            amount = defaultGoal.saved,
-                            style = MaterialTheme.typography.headlineMedium
-                        )
-                        Text(
-                            "dari " + formatRupiah(defaultGoal.target),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        val projectedDate = state.projectedDate
-                        val estimateText = when {
-                            state.monthsToTarget == 0L -> "Target tercapai!"
-                            state.monthsToTarget != null && projectedDate != null ->
-                                "Perkiraan tercapai sekitar " + projectedDate.format(
-                                    java.time.format.DateTimeFormatter.ofPattern(
-                                        "MMM yyyy",
-                                        java.util.Locale("in", "ID")
-                                    )
-                                )
-                            else -> "Belum bisa diperkirakan"
-                        }
-                        Text(
-                            estimateText,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
+                TextButton(onClick = { viewModel.markBillPaid(firstDue.bill) }) {
+                    Text("Bayar")
                 }
             }
         }
@@ -554,8 +376,12 @@ fun HomeScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Terakhir dicatat", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            TextButton(onClick = { onNavigate(DoitTab.RIWAYAT) }) { Text("Lihat semua") }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SectionTitle("Transaksi Terbaru")
+                Spacer(modifier = Modifier.width(8.dp))
+                StatusPill(text = "Bulan Ini", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            TextButton(onClick = onShowHistory) { Text("Saring") }
         }
         if (state.recent.isEmpty()) {
             DoitCard {
@@ -576,22 +402,50 @@ fun HomeScreen(
                     state.recent.forEach { tx ->
                         TransactionRow(
                             tx = tx,
-                            currency = viewModel.walletCurrency(tx.walletId)
+                            currency = viewModel.walletCurrency(tx.walletId),
+                            walletName = viewModel.walletName(tx.walletId)
                         )
                     }
                 }
             }
         }
-        Spacer(modifier = Modifier.height(72.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .clickable { onShowHistory() }
+                .padding(vertical = 12.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Lihat Semua Transaksi",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(
+                Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(modifier = Modifier.height(96.dp))
     }
 }
 
 @Composable
-private fun HeroMini(label: String, amount: Long, color: Color, currency: Currency) {
+private fun HeroMini(
+    label: String,
+    amount: Long,
+    color: Color,
+    currency: Currency,
+    hidden: Boolean
+) {
     Column {
         Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(
-            formatMoney(amount, currency),
+            if (hidden) "••••" else formatMoney(amount, currency),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = color
@@ -600,26 +454,106 @@ private fun HeroMini(label: String, amount: Long, color: Color, currency: Curren
 }
 
 @Composable
-private fun BudgetRingItem(label: String, spent: Long, budget: Long, currency: Currency) {
-    val ratio = if (budget > 0) spent.toFloat() / budget.toFloat() else 0f
-    val color = when {
-        ratio >= 1f -> ExpenseRed
-        ratio >= 0.8f -> WarningAmber
-        else -> VioletAccent
+private fun InOutCard(
+    label: String,
+    amount: Long,
+    prevAmount: Long,
+    isIncome: Boolean,
+    currency: Currency,
+    hidden: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val changeText = if (prevAmount == 0L) null else String.format(
+        Locale.US, "%+.1f%%", (amount - prevAmount) * 100.0 / prevAmount.toDouble()
+    )
+    val status = when {
+        prevAmount == 0L -> if (amount == 0L) "belum ada" else "baru"
+        isIncome -> if (amount >= prevAmount) "sehat" else "turun"
+        else -> if (amount <= prevAmount) "terkendali" else "naik"
     }
-    val pct = (ratio.coerceIn(0f, 1f) * 100).toInt()
-    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        BudgetRing(progress = ratio, color = color, centerText = "$pct%")
-        Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-        val remaining = budget - spent
+    val color = if (isIncome) IncomeGreen else ExpenseRed
+    DoitCard(modifier = modifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Box(
+                modifier = Modifier.size(28.dp).clip(CircleShape)
+                    .background(color.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (isIncome) Icons.Filled.SouthWest else Icons.Filled.NorthEast,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = when {
-                remaining < 0 -> "Lebih " + formatMoney(-remaining, currency)
-                ratio >= 0.8f && ratio < 1f -> "Hampir habis · sisa " + formatMoney(remaining, currency)
-                else -> "Sisa " + formatMoney(remaining, currency)
-            },
-            style = MaterialTheme.typography.bodySmall,
-            color = if (remaining < 0) ExpenseRed else MaterialTheme.colorScheme.onSurfaceVariant
+            if (hidden) "••••" else formatMoney(amount, currency),
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (changeText != null) {
+                Text(
+                    changeText,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = color
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+            }
+            Text(
+                status,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun QuickAction(
+    icon: ImageVector,
+    label: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .clickable { onClick() }
+            .padding(vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Box(
+            modifier = Modifier.size(40.dp).clip(CircleShape)
+                .background(Emerald.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Emerald,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }

@@ -29,7 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.xeylabs.doit.ui.theme.HeroViolet
+import com.xeylabs.doit.ui.theme.HeroEmerald
 import com.xeylabs.doit.ui.theme.WarningAmber
 import com.xeylabs.doit.viewmodel.UpdateUiState
 import com.xeylabs.doit.viewmodel.UpdateViewModel
@@ -40,7 +40,7 @@ fun UpdateCard(updateViewModel: UpdateViewModel) {
     when (val current = state) {
         is UpdateUiState.Idle, is UpdateUiState.Checking -> return
         is UpdateUiState.Available -> {
-            DoitCard(containerColor = HeroViolet) {
+            DoitCard(containerColor = HeroEmerald) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
@@ -89,7 +89,7 @@ fun UpdateCard(updateViewModel: UpdateViewModel) {
             }
         }
         is UpdateUiState.Downloading -> {
-            DoitCard(containerColor = HeroViolet) {
+            DoitCard(containerColor = HeroEmerald) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
@@ -113,7 +113,7 @@ fun UpdateCard(updateViewModel: UpdateViewModel) {
             }
         }
         is UpdateUiState.Ready -> {
-            DoitCard(containerColor = HeroViolet) {
+            DoitCard(containerColor = HeroEmerald) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
@@ -137,7 +137,7 @@ fun UpdateCard(updateViewModel: UpdateViewModel) {
             }
         }
         is UpdateUiState.NeedsPermission -> {
-            DoitCard(containerColor = HeroViolet) {
+            DoitCard(containerColor = HeroEmerald) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
@@ -173,7 +173,7 @@ fun UpdateCard(updateViewModel: UpdateViewModel) {
             }
         }
         is UpdateUiState.Error -> {
-            DoitCard(containerColor = HeroViolet) {
+            DoitCard(containerColor = HeroEmerald) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(

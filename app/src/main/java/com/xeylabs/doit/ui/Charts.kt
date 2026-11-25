@@ -17,13 +17,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.xeylabs.doit.ui.theme.VioletAccent
+import com.xeylabs.doit.ui.theme.Emerald
+import com.xeylabs.doit.ui.theme.EmeraldAccent
+import com.xeylabs.doit.ui.theme.EmeraldStrong
 import com.xeylabs.doit.viewmodel.CategorySpend
 import com.xeylabs.doit.viewmodel.DaySpend
 import com.xeylabs.doit.viewmodel.MonthSpend
@@ -37,7 +42,7 @@ fun List<MonthSpend>.toMonthBars(): List<BarEntry> = map { BarEntry(it.label, it
 fun BarChart(
     bars: List<BarEntry>,
     modifier: Modifier = Modifier,
-    barColor: Color = VioletAccent,
+    barColor: Color = EmeraldAccent,
     height: Dp = 160.dp
 ) {
     val max = (bars.maxOfOrNull { it.amount } ?: 0L).coerceAtLeast(1L)
@@ -162,5 +167,93 @@ fun BudgetRing(
             fontWeight = FontWeight.Bold,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
+    }
+}
+
+@Composable
+fun NetFlowChart(
+    points: List<Long>,
+    labels: List<String>,
+    peakIndex: Int,
+    modifier: Modifier = Modifier,
+    height: Dp = 128.dp
+) {
+    if (points.isEmpty()) return
+    val max = points.max()
+    val min = points.min()
+    Canvas(modifier = modifier.fillMaxWidth().height(height)) {
+        val w = size.width
+        val h = size.height
+        val topPad = 10f
+        val bottomPad = 6f
+        val span = (max - min).toFloat().coerceAtLeast(1f)
+        fun xAt(i: Int): Float = if (points.size == 1) w / 2f else w * i.toFloat() / (points.size - 1).toFloat()
+        fun yAt(v: Long): Float = topPad + (h - topPad - bottomPad) * (1f - (v - min).toFloat() / span)
+        val pts = points.mapIndexed { i, v -> Offset(xAt(i), yAt(v)) }
+        val linePath = Path()
+        linePath.moveTo(pts.first().x, pts.first().y)
+        if (pts.size == 1) {
+            linePath.lineTo(pts.first().x, pts.first().y)
+        } else {
+            for (i in 0 until pts.size - 1) {
+                val p0 = pts.getOrNull(i - 1) ?: pts[i]
+                val p1 = pts[i]
+                val p2 = pts[i + 1]
+                val p3 = pts.getOrNull(i + 2) ?: p2
+                val c1x = p1.x + (p2.x - p0.x) / 6f
+                val c1y = p1.y + (p2.y - p0.y) / 6f
+                val c2x = p2.x - (p3.x - p1.x) / 6f
+                val c2y = p2.y - (p3.y - p1.y) / 6f
+                linePath.cubicTo(c1x, c1y, c2x, c2y, p2.x, p2.y)
+            }
+        }
+        val fillPath = Path()
+        fillPath.addPath(linePath)
+        fillPath.lineTo(pts.last().x, h)
+        fillPath.lineTo(pts.first().x, h)
+        fillPath.close()
+        drawPath(
+            path = fillPath,
+            brush = Brush.verticalGradient(
+                colors = listOf(Emerald.copy(alpha = 0.35f), Emerald.copy(alpha = 0.0f)),
+                startY = 0f,
+                endY = h
+            )
+        )
+        drawPath(
+            path = linePath,
+            brush = Brush.horizontalGradient(listOf(EmeraldStrong, Emerald)),
+            style = Stroke(width = 5f, cap = StrokeCap.Round)
+        )
+        val peak = pts.getOrNull(peakIndex)
+        if (peak != null) {
+            drawLine(
+                color = Emerald.copy(alpha = 0.6f),
+                start = Offset(peak.x, topPad),
+                end = Offset(peak.x, h - bottomPad),
+                strokeWidth = 2f,
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f)
+            )
+            drawCircle(color = Color(0xFF0E141C), radius = 11f, center = peak)
+            drawCircle(color = Emerald, radius = 11f, center = peak, style = Stroke(width = 5f))
+            drawCircle(color = Emerald, radius = 5f, center = peak)
+        }
+        drawLine(
+            color = Color.White.copy(alpha = 0.12f),
+            start = Offset(0f, h - 2f),
+            end = Offset(w, h - 2f),
+            strokeWidth = 2f
+        )
+    }
+    Row(modifier = Modifier.fillMaxWidth()) {
+        labels.forEach { label ->
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
     }
 }

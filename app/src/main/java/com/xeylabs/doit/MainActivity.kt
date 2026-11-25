@@ -3,21 +3,26 @@ package com.xeylabs.doit
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.EventNote
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,9 +31,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xeylabs.doit.data.TxnType
 import com.xeylabs.doit.ui.HistoryScreen
@@ -38,23 +47,22 @@ import com.xeylabs.doit.ui.PlansScreen
 import com.xeylabs.doit.ui.ProfileScreen
 import com.xeylabs.doit.ui.QuickAddSheet
 import com.xeylabs.doit.ui.ReportsScreen
-import com.xeylabs.doit.ui.WalletsScreen
 import com.xeylabs.doit.ui.theme.DoitTheme
+import com.xeylabs.doit.ui.theme.Emerald
+import com.xeylabs.doit.ui.theme.EmeraldStrong
+import com.xeylabs.doit.ui.theme.SurfaceLowest
 import com.xeylabs.doit.viewmodel.MainViewModel
 import com.xeylabs.doit.viewmodel.UpdateViewModel
 import com.xeylabs.doit.widget.DoitWidgetProvider
 
-/** Satu tab = satu tugas jelas. Urutan enum = urutan tab di bawah. */
 enum class DoitTab(val label: String, val icon: ImageVector) {
-    BERANDA("Beranda", Icons.Filled.Home),
-    RIWAYAT("Riwayat", Icons.Filled.List),
-    DOMPET("Dompet", Icons.Filled.AccountBalanceWallet),
-    RENCANA("Rencana", Icons.Filled.EventNote),
-    LAPORAN("Laporan", Icons.Filled.BarChart)
+    BERANDA("Beranda", Icons.Filled.GridView),
+    ANALISIS("Analisis", Icons.Filled.Insights),
+    ANGGARAN("Anggaran", Icons.Filled.AccountBalanceWallet),
+    AKUN("Akun", Icons.Filled.ManageAccounts)
 }
 
 class MainActivity : ComponentActivity() {
-    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         DoitWidgetProvider.refresh(this)
@@ -74,61 +82,46 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MainScaffold(viewModel: MainViewModel, updateViewModel: UpdateViewModel) {
     var selectedTab by remember { mutableStateOf(DoitTab.BERANDA) }
     var addSheetType by remember { mutableStateOf<TxnType?>(null) }
-    var showProfile by remember { mutableStateOf(false) }
+    var showHistory by remember { mutableStateOf(false) }
 
     Scaffold(
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("do.it", fontWeight = FontWeight.Bold) }
-            )
-        },
         bottomBar = {
-            NavigationBar {
-                DoitTab.entries.forEach { tab ->
-                    NavigationBarItem(
-                        selected = selectedTab == tab,
-                        onClick = { selectedTab = tab; showProfile = false },
-                        icon = { Icon(tab.icon, contentDescription = tab.label) },
-                        label = { Text(tab.label) }
-                    )
-                }
-            }
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { addSheetType = TxnType.EXPENSE }) {
-                Icon(Icons.Filled.Add, contentDescription = "Catat baru")
-            }
+            FluxBottomBar(
+                selectedTab = selectedTab,
+                onSelect = { selectedTab = it; showHistory = false },
+                onAdd = { addSheetType = TxnType.EXPENSE }
+            )
         }
     ) { padding ->
         Box(modifier = Modifier.padding(padding)) {
-            if (showProfile) {
-                ProfileScreen(
-                    viewModel = viewModel,
-                    updateViewModel = updateViewModel,
-                    onBack = { showProfile = false },
-                    onNavigate = { tab ->
-                        showProfile = false
-                        selectedTab = tab
-                    }
-                )
+            if (showHistory) {
+                HistoryScreen(viewModel) { showHistory = false }
             } else {
                 when (selectedTab) {
                     DoitTab.BERANDA -> HomeScreen(
                         viewModel = viewModel,
                         updateViewModel = updateViewModel,
                         onNavigate = { selectedTab = it },
-                        onOpenProfile = { showProfile = true },
-                        onQuickAdd = { type -> addSheetType = type }
+                        onQuickAdd = { type -> addSheetType = type },
+                        onShowHistory = { showHistory = true }
                     )
-                    DoitTab.RIWAYAT -> HistoryScreen(viewModel)
-                    DoitTab.DOMPET -> WalletsScreen(viewModel)
-                    DoitTab.RENCANA -> PlansScreen(viewModel)
-                    DoitTab.LAPORAN -> ReportsScreen(viewModel)
+                    DoitTab.ANALISIS -> ReportsScreen(
+                        viewModel = viewModel,
+                        onNavigate = { selectedTab = it }
+                    )
+                    DoitTab.ANGGARAN -> PlansScreen(
+                        viewModel = viewModel,
+                        onNavigate = { selectedTab = it }
+                    )
+                    DoitTab.AKUN -> ProfileScreen(
+                        viewModel = viewModel,
+                        updateViewModel = updateViewModel,
+                        onNavigate = { selectedTab = it }
+                    )
                 }
             }
         }
@@ -140,5 +133,97 @@ private fun MainScaffold(viewModel: MainViewModel, updateViewModel: UpdateViewMo
                 initialType = sheetType
             )
         }
+    }
+}
+
+@Composable
+private fun FluxBottomBar(
+    selectedTab: DoitTab,
+    onSelect: (DoitTab) -> Unit,
+    onAdd: () -> Unit
+) {
+    Box(
+        modifier = Modifier.fillMaxWidth()
+            .background(SurfaceLowest.copy(alpha = 0.85f))
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().height(72.dp).padding(bottom = 4.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            FluxNavItem(
+                tab = DoitTab.BERANDA,
+                selected = selectedTab == DoitTab.BERANDA,
+                onClick = { onSelect(DoitTab.BERANDA) },
+                modifier = Modifier.weight(1f)
+            )
+            FluxNavItem(
+                tab = DoitTab.ANALISIS,
+                selected = selectedTab == DoitTab.ANALISIS,
+                onClick = { onSelect(DoitTab.ANALISIS) },
+                modifier = Modifier.weight(1f)
+            )
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier.size(56.dp).offset(y = (-12).dp)
+                        .clip(CircleShape).background(EmeraldStrong)
+                        .clickable { onAdd() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Filled.Add,
+                        contentDescription = "Catat transaksi",
+                        tint = Color(0xFF003824),
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            }
+            FluxNavItem(
+                tab = DoitTab.ANGGARAN,
+                selected = selectedTab == DoitTab.ANGGARAN,
+                onClick = { onSelect(DoitTab.ANGGARAN) },
+                modifier = Modifier.weight(1f)
+            )
+            FluxNavItem(
+                tab = DoitTab.AKUN,
+                selected = selectedTab == DoitTab.AKUN,
+                onClick = { onSelect(DoitTab.AKUN) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun FluxNavItem(
+    tab: DoitTab,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.clickable { onClick() },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Icon(
+            imageVector = tab.icon,
+            contentDescription = tab.label,
+            tint = if (selected) Emerald else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(24.dp)
+        )
+        Text(
+            tab.label,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (selected) Emerald else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Box(
+            modifier = Modifier.size(4.dp).clip(CircleShape)
+                .background(if (selected) Emerald else Color.Transparent)
+        )
     }
 }

@@ -78,9 +78,14 @@ jobs:
           VERSION_NAME: ${{ steps.apk.outputs.version }}
         run: |
           cat > RELEASE_NOTES.md <<'EOF'
-          ## do.it v1.5.1 — Kembali ke desain v1.4.0 (Beranda lengkap)
+          ## do.it v1.6.0 — UI baru ala FluxCash (tema gelap emerald)
 
-          Desain minimalis v1.5.0 dibatalkan — Beranda kembali lengkap seperti v1.4.0: grafik 7 hari / 6 bulan, donut per kategori, cincin anggaran, kartu target tabungan, kartu Perhatian, dan kartu ringkasan dompet. Semua fitur v1.4.0 tetap ada (dompet Rp & Dollar, Paylater, Profil & Pengaturan, migrasi database v4).
+          Tampilan dirombak total mengikuti contoh FluxCash: tema gelap (#0E141C), aksen emerald, font Plus Jakarta Sans (judul/angka) + Inter (isi), kartu rounded-2xl, dan bottom bar baru — Beranda, Analisis, tombol + di tengah, Anggaran, Akun.
+          - **Beranda:** kartu Total Saldo Bersih + pemilih bulan + tombol mata (sembunyikan saldo) + tren vs bulan lalu; kartu Pemasukan/Pengeluaran + % + label sehat/terkendali; grafik tren arus kas 7 hari + badge puncak; 4 aksi cepat (Transfer, Tarik Kas, Atur Pos, Ekspor); Transaksi Terbaru + nama dompet per baris.
+          - **Analisis:** filter Minggu Ini / Bulan Ini / 3 Bulan / Tahun Ini; kartu Arus Kas Bersih + surplus % + bar proporsi; donut + legend; Insight dari pola catatan; kategori pengeluaran terbesar terurut + progress bar; ekspor tetap CSV (bukan PDF).
+          - **Catat Transaksi:** switcher Pengeluaran/Pemasukan/Transfer, nominal besar, grid kategori 3 kolom, insight mikro (% dari sisa anggaran), tombol Simpan.
+          - **Anggaran:** kartu Sisa Anggaran Bulanan + progress bar, pos anggaran + status (Stabil/Hampir Habis/Selesai), grid dompet 2x2, semua fitur lama tetap ada (target tabungan, transaksi berulang, Paylater & utang piutang, tagihan).
+          - Tanpa perubahan database (v4 tetap) — data lama aman. Nama app tetap do.it.
 
           Published signed release and debug APKs.
           EOF
@@ -90,7 +95,7 @@ jobs:
             "${{ steps.apk.outputs.release_path }}.sha256" \
             "${{ steps.apk.outputs.debug_path }}" \
             "${{ steps.apk.outputs.debug_path }}.sha256" \
-            --title "do.it $RELEASE_TAG (Kembali ke desain v1.4.0 — Beranda lengkap)" \
+            --title "do.it $RELEASE_TAG (UI baru ala FluxCash — tema gelap emerald)" \
             --notes-file RELEASE_NOTES.md \
             --latest
 

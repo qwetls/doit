@@ -19,12 +19,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -44,7 +42,7 @@ import androidx.compose.ui.unit.dp
 import com.xeylabs.doit.BuildConfig
 import com.xeylabs.doit.DoitTab
 import com.xeylabs.doit.data.Currency
-import com.xeylabs.doit.ui.theme.HeroViolet
+import com.xeylabs.doit.ui.theme.HeroEmerald
 import com.xeylabs.doit.viewmodel.MainViewModel
 import com.xeylabs.doit.viewmodel.UpdateViewModel
 
@@ -58,7 +56,6 @@ import com.xeylabs.doit.viewmodel.UpdateViewModel
 fun ProfileScreen(
     viewModel: MainViewModel,
     updateViewModel: UpdateViewModel,
-    onBack: () -> Unit,
     onNavigate: (DoitTab) -> Unit
 ) {
     val displayName by viewModel.displayName.collectAsState()
@@ -77,21 +74,13 @@ fun ProfileScreen(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.Filled.ArrowBack, contentDescription = "Kembali")
-            }
-            Text(
-                "Profil & Pengaturan",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
-            )
+        FluxHeader(subtitle = "Akun", displayName = displayName) {
         }
 
         DoitCard {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    modifier = Modifier.size(72.dp).clip(CircleShape).background(HeroViolet),
+                    modifier = Modifier.size(72.dp).clip(CircleShape).background(HeroEmerald),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -215,8 +204,8 @@ fun ProfileScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Anggaran & target tabungan", style = MaterialTheme.typography.bodyLarge)
-                TextButton(onClick = { onNavigate(DoitTab.RENCANA) }) {
-                    Text("Rencana")
+                TextButton(onClick = { onNavigate(DoitTab.ANGGARAN) }) {
+                    Text("Anggaran")
                     Icon(Icons.Filled.ChevronRight, contentDescription = null)
                 }
             }
@@ -225,9 +214,9 @@ fun ProfileScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Laporan & ekspor CSV", style = MaterialTheme.typography.bodyLarge)
-                TextButton(onClick = { onNavigate(DoitTab.LAPORAN) }) {
-                    Text("Laporan")
+                Text("Analisis & ekspor CSV", style = MaterialTheme.typography.bodyLarge)
+                TextButton(onClick = { onNavigate(DoitTab.ANALISIS) }) {
+                    Text("Analisis")
                     Icon(Icons.Filled.ChevronRight, contentDescription = null)
                 }
             }
@@ -235,6 +224,6 @@ fun ProfileScreen(
 
         UpdateCard(updateViewModel)
 
-        Spacer(modifier = Modifier.height(72.dp))
+        Spacer(modifier = Modifier.height(96.dp))
     }
 }

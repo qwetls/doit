@@ -3,23 +3,53 @@ package com.xeylabs.doit.ui
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.HealthAndSafety
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Work
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.xeylabs.doit.data.Category as DoitCategory
+import com.xeylabs.doit.data.TxnType
+import com.xeylabs.doit.data.WalletType
 import com.xeylabs.doit.ui.theme.CardBorder
+import com.xeylabs.doit.ui.theme.Emerald
 import com.xeylabs.doit.ui.theme.SurfaceDark
 
 @Composable
@@ -30,7 +60,7 @@ fun DoitCard(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(16.dp),
         border = BorderStroke(1.dp, CardBorder),
         colors = CardDefaults.cardColors(containerColor = containerColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
@@ -51,6 +81,99 @@ fun SectionTitle(text: String, modifier: Modifier = Modifier) {
         fontWeight = FontWeight.Bold,
         modifier = modifier
     )
+}
+
+@Composable
+fun StatusPill(text: String, color: Color, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(color.copy(alpha = 0.12f))
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = color
+        )
+    }
+}
+
+@Composable
+fun FluxHeader(subtitle: String, displayName: String, onAvatarClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column {
+            Text(
+                text = "do.it",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Box(
+            modifier = Modifier.size(40.dp).clip(CircleShape)
+                .background(Emerald.copy(alpha = 0.15f))
+                .clickable { onAvatarClick() },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = displayName.trim().firstOrNull()?.uppercase() ?: "A",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = Emerald
+            )
+        }
+    }
+}
+
+fun categoryIcon(category: DoitCategory): ImageVector {
+    return when (category) {
+        DoitCategory.GAJI -> Icons.Filled.AccountBalance
+        DoitCategory.LEMBUR -> Icons.Filled.Schedule
+        DoitCategory.SAMPINGAN -> Icons.Filled.Work
+        DoitCategory.LAIN_MASUK -> Icons.Filled.Payments
+        DoitCategory.BELANJA -> Icons.Filled.ShoppingBag
+        DoitCategory.MAKAN -> Icons.Filled.Restaurant
+        DoitCategory.TRANSPORT -> Icons.Filled.DirectionsCar
+        DoitCategory.DARURAT -> Icons.Filled.HealthAndSafety
+        DoitCategory.LAIN_KELUAR -> Icons.Filled.Category
+        DoitCategory.TRANSFER -> Icons.Filled.SwapHoriz
+    }
+}
+
+fun walletTypeIcon(type: WalletType): ImageVector {
+    return when (type) {
+        WalletType.TUNAI -> Icons.Filled.Payments
+        WalletType.BANK -> Icons.Filled.AccountBalance
+        WalletType.EWALLET -> Icons.Filled.PhoneAndroid
+    }
+}
+
+@Composable
+fun CategoryIconTile(category: DoitCategory, size: Int = 40, tint: Color? = null) {
+    val color = tint ?: if (category.type == TxnType.INCOME) Emerald else MaterialTheme.colorScheme.onSurfaceVariant
+    Box(
+        modifier = Modifier.size(size.dp).clip(RoundedCornerShape(12.dp))
+            .background(color.copy(alpha = 0.15f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = categoryIcon(category),
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size((size * 0.5).dp)
+        )
+    }
 }
 
 @Composable

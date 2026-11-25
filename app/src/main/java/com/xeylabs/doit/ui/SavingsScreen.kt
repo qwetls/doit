@@ -33,7 +33,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.xeylabs.doit.data.SavingsGoal
 import com.xeylabs.doit.ui.theme.ExpenseRed
-import com.xeylabs.doit.ui.theme.VioletAccent
+import com.xeylabs.doit.ui.theme.EmeraldAccent
 import com.xeylabs.doit.viewmodel.MainViewModel
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -194,7 +194,7 @@ private fun GoalCard(
                     Text(
                         text = "UTAMA",
                         style = MaterialTheme.typography.labelMedium,
-                        color = VioletAccent
+                        color = EmeraldAccent
                     )
                 }
             }
@@ -213,7 +213,7 @@ private fun GoalCard(
         Row(verticalAlignment = Alignment.CenterVertically) {
             BudgetRing(
                 progress = progress,
-                color = VioletAccent,
+                color = EmeraldAccent,
                 centerText = "${(progress * 100).toInt()}%",
                 size = 84.dp,
                 strokeWidth = 9.dp

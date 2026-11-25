@@ -39,7 +39,7 @@ import kotlin.math.ceil
 
 data class DaySpend(val label: String, val amount: Long)
 data class MonthSpend(val label: String, val amount: Long)
-data class CategorySpend(val category: Category, val amount: Long)
+data class CategorySpend(val category: Category, val amount: Long, val count: Int = 0)
 data class WalletBalance(val wallet: Wallet, val balance: Long)
 data class IncomeSourceSpend(val category: Category, val amount: Long)
 data class WalletMonthSpend(val wallet: Wallet, val income: Long, val expense: Long)
@@ -51,9 +51,6 @@ data class Insight(val text: String, val kind: InsightKind)
 data class HomeUiState(
     val monthIncome: Long = 0,
     val monthExpense: Long = 0,
-    // Semua angka bulan ini di atas adalah mata uang utama saja. Peta di bawah
-    // menampung mata uang lain (khusus Rp + Dollar) — total tidak pernah
-    // dicampur antar mata uang karena tanpa kurs tidak ada angka yang benar.
     val defaultCurrency: String = "IDR",
     val monthIncomeByCurrency: Map<String, Long> = emptyMap(),
     val monthExpenseByCurrency: Map<String, Long> = emptyMap(),
@@ -75,6 +72,7 @@ data class HomeUiState(
     val monthsToTarget: Long? = null,
     val projectedDate: LocalDate? = null,
     val last7Days: List<DaySpend> = emptyList(),
+    val last7DaysNet: List<DaySpend> = emptyList(),
     val monthlyBars: List<MonthSpend> = emptyList(),
     val categoryBreakdown: List<CategorySpend> = emptyList(),
     val prevMonthExpense: Long = 0,
@@ -104,6 +102,27 @@ private val dayAbbrev = DateTimeFormatter.ofPattern("EEE", indonesia)
 private val monthAbbrev = DateTimeFormatter.ofPattern("MMM", indonesia)
 private val monthYear = DateTimeFormatter.ofPattern("MMM yyyy", indonesia)
 
+enum class ReportRange(val label: String) {
+    WEEK("Minggu Ini"),
+    MONTH("Bulan Ini"),
+    QUARTER("3 Bulan"),
+    YEAR("Tahun Ini")
+}
+
+private fun inReportRange(date: LocalDate, range: ReportRange, month: YearMonth): Boolean {
+    val today = LocalDate.now()
+    return when (range) {
+        ReportRange.WEEK -> !date.isBefore(today.minusDays(6)) && !date.isAfter(today)
+        ReportRange.MONTH -> YearMonth.from(date) == month
+        ReportRange.QUARTER -> {
+            val ym = YearMonth.from(date)
+            val nowYm = YearMonth.now()
+            !ym.isBefore(nowYm.minusMonths(2)) && !ym.isAfter(nowYm)
+        }
+        ReportRange.YEAR -> date.year == today.year
+    }
+}
+
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val db = AppDatabase.get(app)
     private val dao = db.transactionDao()
@@ -115,6 +134,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val settings = SettingsStore(app)
 
     val selectedMonth = MutableStateFlow(YearMonth.now())
+    val reportRange = MutableStateFlow(ReportRange.MONTH)
     val historyCategory = MutableStateFlow<Category?>(null)
     val historyWalletId = MutableStateFlow<Long?>(null)
     val searchQuery = MutableStateFlow("")
@@ -176,23 +196,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val reportState: StateFlow<ReportUiState> = combine(
-        allTransactions, selectedMonth, wallets, settings.defaultCurrency
-    ) { txs, month, walletList, currency ->
+        allTransactions, selectedMonth, wallets, settings.defaultCurrency, reportRange
+    ) { txs, month, walletList, currency, range ->
         val defaultId = walletList.firstOrNull()?.id
         fun txCurrency(tx: Transaction): String =
             walletList.firstOrNull { it.id == (tx.walletId ?: defaultId) }?.currency ?: "IDR"
-        // Arus kas & kategori dihitung dalam mata uang utama saja — mencampur
-        // Rp dan Dollar tanpa kurs menghasilkan angka yang salah.
         val dcTxs = txs.filter { txCurrency(it) == currency }
-        val inMonth = dcTxs.filter { YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == month }
-        val income = inMonth.filter { it.type == TxnType.INCOME.name }.sumOf { it.amount }
-        val expense = inMonth.filter { it.type == TxnType.EXPENSE.name }.sumOf { it.amount }
+        val inRange = dcTxs.filter { inReportRange(LocalDate.ofEpochDay(it.dateEpochDay), range, month) }
+        val income = inRange.filter { it.type == TxnType.INCOME.name }.sumOf { it.amount }
+        val expense = inRange.filter { it.type == TxnType.EXPENSE.name }.sumOf { it.amount }
         val incomeByCurrency = txs
-            .filter { it.type == TxnType.INCOME.name && YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == month }
+            .filter { it.type == TxnType.INCOME.name && inReportRange(LocalDate.ofEpochDay(it.dateEpochDay), range, month) }
             .groupBy { txCurrency(it) }
             .mapValues { (_, list) -> list.sumOf { it.amount } }
         val expenseByCurrency = txs
-            .filter { it.type == TxnType.EXPENSE.name && YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == month }
+            .filter { it.type == TxnType.EXPENSE.name && inReportRange(LocalDate.ofEpochDay(it.dateEpochDay), range, month) }
             .groupBy { txCurrency(it) }
             .mapValues { (_, list) -> list.sumOf { it.amount } }
         ReportUiState(
@@ -204,29 +222,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             monthExpenseByCurrency = expenseByCurrency,
             perCategory = Category.forType(TxnType.EXPENSE)
                 .map { category ->
-                    CategorySpend(
-                        category,
-                        inMonth.filter { it.category == category.name }.sumOf { it.amount }
-                    )
+                    val catTxs = inRange.filter { it.category == category.name }
+                    CategorySpend(category, catTxs.sumOf { it.amount }, catTxs.size)
                 }
                 .filter { it.amount > 0 }
                 .sortedByDescending { it.amount },
             perWallet = walletList.map { wallet ->
                 val walletTxs = txs.filter { (it.walletId ?: defaultId) == wallet.id }
-                val walletInMonth = walletTxs.filter { YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == month }
-                val transferIn = walletInMonth
+                val walletInRange = walletTxs.filter { inReportRange(LocalDate.ofEpochDay(it.dateEpochDay), range, month) }
+                val transferIn = walletInRange
                     .filter { it.type == TxnType.TRANSFER.name && it.transferToWalletId == wallet.id }
                     .sumOf { it.transferReceivedAmount ?: it.amount }
-                val transferOut = walletInMonth
+                val transferOut = walletInRange
                     .filter { it.type == TxnType.TRANSFER.name && (it.walletId ?: defaultId) == wallet.id }
                     .sumOf { it.amount }
                 WalletMonthSpend(
                     wallet = wallet,
-                    income = walletInMonth.filter { it.type == TxnType.INCOME.name }.sumOf { it.amount } + transferIn,
-                    expense = walletInMonth.filter { it.type == TxnType.EXPENSE.name }.sumOf { it.amount } + transferOut
+                    income = walletInRange.filter { it.type == TxnType.INCOME.name }.sumOf { it.amount } + transferIn,
+                    expense = walletInRange.filter { it.type == TxnType.EXPENSE.name }.sumOf { it.amount } + transferOut
                 )
             },
-            perSource = computeIncomeBySource(txs, month, currency, walletList)
+            perSource = computeIncomeBySourceRange(txs, range, month, currency, walletList)
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ReportUiState())
 
@@ -242,7 +258,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 )
             }
-            // Seed dompet default (fresh install; upgrader sudah di-seed oleh migrasi).
             if (walletDao.getAllOnce().isEmpty()) {
                 walletDao.insert(Wallet(name = "Tunai", type = WalletType.TUNAI.name, initialBalance = 0))
                 walletDao.insert(Wallet(name = "SeaBank", type = WalletType.BANK.name, initialBalance = 0))
@@ -259,8 +274,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val budgetTabungan: Long
     )
 
-    // Pemasukan bulanan + mata uang utama digabung jadi satu flow supaya
-    // combine uiState tetap 5 flow (batas aman yang sama seperti sebelumnya).
     private val settingsPair: StateFlow<Pair<Long, String>> = combine(
         settings.monthlyIncome, settings.defaultCurrency
     ) { income, currency -> income to currency }
@@ -325,6 +338,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             .sortedByDescending { it.amount }
     }
 
+    private fun computeIncomeBySourceRange(
+        txs: List<Transaction>,
+        range: ReportRange,
+        month: YearMonth,
+        currency: String,
+        walletList: List<Wallet>
+    ): List<IncomeSourceSpend> {
+        val defaultId = walletList.firstOrNull()?.id
+        return txs.filter {
+            it.type == TxnType.INCOME.name &&
+                inReportRange(LocalDate.ofEpochDay(it.dateEpochDay), range, month) &&
+                (walletList.firstOrNull { w -> w.id == (it.walletId ?: defaultId) }?.currency ?: "IDR") == currency
+        }
+            .groupBy { Category.fromName(it.category) }
+            .map { (category, list) -> IncomeSourceSpend(category, list.sumOf { it.amount }) }
+            .sortedByDescending { it.amount }
+    }
+
     private fun computeDueBills(billList: List<Bill>): List<BillDue> {
         val today = LocalDate.now()
         val currentMonthKey = YearMonth.now().toString()
@@ -353,8 +384,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val defaultWalletId = walletList.firstOrNull()?.id
         fun txCurrency(tx: Transaction): String =
             walletList.firstOrNull { it.id == (tx.walletId ?: defaultWalletId) }?.currency ?: "IDR"
-        // Grafik, insight, dan angka bulan ini dihitung dalam mata uang utama
-        // saja — mencampur Rp dan Dollar tanpa kurs menghasilkan angka salah.
         val dcTxs = txs.filter { txCurrency(it) == defaultCurrency }
         val inMonth = dcTxs.filter { YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == month }
         val prevMonth = month.minusMonths(1)
@@ -398,6 +427,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 it.type == TxnType.EXPENSE.name && LocalDate.ofEpochDay(it.dateEpochDay) == date
             }.sumOf { it.amount }
             DaySpend(date.format(dayAbbrev), amount)
+        }
+
+        val last7DaysNet = (6 downTo 0).map { back ->
+            val date = today.minusDays(back.toLong())
+            val dayTxs = dcTxs.filter { LocalDate.ofEpochDay(it.dateEpochDay) == date }
+            DaySpend(date.format(dayAbbrev), incomeOf(dayTxs) - expenseOf(dayTxs))
         }
 
         val monthlyBars = (5 downTo 0).map { back ->
@@ -469,6 +504,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             monthsToTarget = monthsToTarget,
             projectedDate = projectedDate,
             last7Days = last7Days,
+            last7DaysNet = last7DaysNet,
             monthlyBars = monthlyBars,
             categoryBreakdown = categoryBreakdown,
             prevMonthExpense = prevMonthExpense,
@@ -571,7 +607,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         allTransactions, selectedMonth, historyCategory, searchQuery, historyWalletId
     ) { txs, month, category, query, walletId ->
         val q = query.trim()
-        // Transaksi lama tanpa walletId dihitung ke dompet pertama (dompet default).
         val defaultId = wallets.value.firstOrNull()?.id
         txs.filter { YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == month }
             .filter { category == null || it.category == category.name }
@@ -584,7 +619,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // ---------- Transaksi berulang: dievaluasi tiap kali aplikasi dibuka ----------
 
     private fun nextDueDate(recurring: RecurringTransaction, after: LocalDate): LocalDate {
         return when (RecurringFrequency.fromName(recurring.frequency)) {
@@ -734,7 +768,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ---------- Dompet ----------
 
     fun addWallet(name: String, type: WalletType, currency: Currency, initialBalance: Long) {
         viewModelScope.launch {
@@ -755,13 +788,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteWallet(wallet: Wallet) {
         viewModelScope.launch {
-            // Dompet terakhir tidak boleh dihapus — transaksi butuh dompet default.
             if (walletDao.getAllOnce().size <= 1) return@launch
             walletDao.delete(wallet)
         }
     }
 
-    // ---------- Transaksi berulang ----------
 
     fun addRecurring(recurring: RecurringTransaction) {
         viewModelScope.launch { recurringDao.insert(recurring) }
@@ -779,7 +810,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { recurringDao.delete(recurring) }
     }
 
-    // ---------- Utang, piutang & paylater ----------
 
     fun addDebt(
         personName: String,
@@ -819,7 +849,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { debtDao.delete(debt) }
     }
 
-    // ---------- Tagihan ----------
 
     fun addBill(name: String, amount: Long, dueDayOfMonth: Int) {
         viewModelScope.launch {
@@ -847,8 +876,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val currentMonthKey = YearMonth.now().toString()
             if (bill.paidMonth == currentMonthKey) return@launch
             billDao.update(bill.copy(paidMonth = currentMonthKey))
-            // Tagihan selalu Rupiah — pakai dompet Rp, bukan dompet terakhir
-            // kalau dompet terakhir itu Dollar.
             val walletList = walletDao.getAllOnce()
             val idrWalletId = walletList.firstOrNull { (it.currency ?: "IDR") == "IDR" }?.id
             val walletId = idrWalletId ?: resolveDefaultWalletId()
@@ -866,7 +893,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ---------- Laporan + ekspor CSV ----------
 
     fun exportCsv() {
         viewModelScope.launch {
@@ -925,7 +951,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         return month.format(DateTimeFormatter.ofPattern("MMMM yyyy", indonesia))
     }
 
-    // ---------- Target tabungan (v1.1, tidak berubah) ----------
 
     fun addGoal(name: String, target: Long) {
         viewModelScope.launch {
@@ -991,6 +1016,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun nextMonth() {
         val next = selectedMonth.value.plusMonths(1)
         if (!next.isAfter(YearMonth.now())) selectedMonth.value = next
+    }
+
+    fun setReportRange(range: ReportRange) {
+        reportRange.value = range
     }
 
     fun setHistoryCategory(category: Category?) {

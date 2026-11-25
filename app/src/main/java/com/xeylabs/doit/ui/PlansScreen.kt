@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.xeylabs.doit.DoitTab
 import com.xeylabs.doit.data.Bill
 import com.xeylabs.doit.data.Category
 import com.xeylabs.doit.data.Debt
@@ -40,6 +41,7 @@ import com.xeylabs.doit.data.RecurringFrequency
 import com.xeylabs.doit.data.RecurringTransaction
 import com.xeylabs.doit.data.TxnType
 import com.xeylabs.doit.data.effectiveKind
+import com.xeylabs.doit.ui.theme.Emerald
 import com.xeylabs.doit.ui.theme.ExpenseRed
 import com.xeylabs.doit.ui.theme.IncomeGreen
 import com.xeylabs.doit.viewmodel.MainViewModel
@@ -52,15 +54,40 @@ import java.time.YearMonth
  * membuka dialog pengelolaannya masing-masing. Tidak ada ringkasan laporan di sini.
  */
 @Composable
-fun PlansScreen(viewModel: MainViewModel) {
+fun PlansScreen(viewModel: MainViewModel, onNavigate: (DoitTab) -> Unit) {
+    val month by viewModel.selectedMonth.collectAsState()
+    val displayName by viewModel.displayName.collectAsState()
+    val today = LocalDate.now()
+    val isCurrentMonth = month == YearMonth.now()
+    val daysLeft = YearMonth.now().lengthOfMonth() - today.dayOfMonth
+
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text("Rencana", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        FluxHeader(subtitle = "Anggaran", displayName = displayName) {
+            onNavigate(DoitTab.AKUN)
+        }
 
-        SectionTitle("Anggaran")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            MonthStepper(
+                month = month,
+                onPrev = { viewModel.prevMonth() },
+                onNext = { viewModel.nextMonth() },
+                modifier = Modifier.weight(1f)
+            )
+            if (isCurrentMonth) {
+                StatusPill(text = "Tersisa $daysLeft hari", color = Emerald)
+            }
+        }
+
         BudgetSection(viewModel)
+
+        WalletsSection(viewModel)
 
         SectionTitle("Target tabungan")
         SavingsSection(viewModel)
@@ -74,7 +101,7 @@ fun PlansScreen(viewModel: MainViewModel) {
         SectionTitle("Tagihan & pengingat")
         BillsSection(viewModel)
 
-        Spacer(modifier = Modifier.height(72.dp))
+        Spacer(modifier = Modifier.height(96.dp))
     }
 }
 

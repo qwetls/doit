@@ -1,20 +1,14 @@
 package com.xeylabs.doit.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -22,7 +16,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.xeylabs.doit.data.Category
@@ -38,44 +31,51 @@ fun TransactionRow(
     onEdit: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
     currency: Currency = Currency.IDR,
+    walletName: String? = null,
     modifier: Modifier = Modifier
 ) {
     val isIncome = tx.type == TxnType.INCOME.name
+    val isTransfer = tx.type == TxnType.TRANSFER.name
     val category = Category.fromName(tx.category)
     Row(
         modifier = modifier.fillMaxWidth().padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier.size(40.dp).clip(CircleShape)
-                .background((if (isIncome) IncomeGreen else ExpenseRed).copy(alpha = 0.18f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = if (isIncome) Icons.Filled.Add else Icons.Filled.Remove,
-                contentDescription = null,
-                tint = if (isIncome) IncomeGreen else ExpenseRed,
-                modifier = Modifier.size(20.dp)
-            )
-        }
+        CategoryIconTile(
+            category = category,
+            tint = when {
+                isTransfer -> MaterialTheme.colorScheme.onSurfaceVariant
+                isIncome -> IncomeGreen
+                else -> ExpenseRed
+            }
+        )
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = category.label,
+                text = if (tx.note.isNotBlank() && isTransfer) tx.note else category.label,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium
             )
             Text(
-                text = formatDate(tx.dateEpochDay) + if (tx.note.isNotBlank()) " · " + tx.note else "",
+                text = formatDate(tx.dateEpochDay) +
+                    (if (walletName != null) " · " + walletName else "") +
+                    (if (tx.note.isNotBlank() && !isTransfer) " · " + tx.note else ""),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         Text(
-            text = formatSignedMoney(tx.amount, isIncome, currency),
+            text = when {
+                isTransfer -> formatMoney(tx.amount, currency)
+                else -> formatSignedMoney(tx.amount, isIncome, currency)
+            },
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Bold,
-            color = if (isIncome) IncomeGreen else ExpenseRed
+            color = when {
+                isTransfer -> MaterialTheme.colorScheme.onSurface
+                isIncome -> IncomeGreen
+                else -> ExpenseRed
+            }
         )
         if (onEdit != null) {
             IconButton(onClick = onEdit) {

@@ -2,6 +2,13 @@
 
 Aplikasi pencatat uang yang ringan — money management untuk gaji Rp1.000.000/bulan.
 
+**v1.6.0 — UI baru ala FluxCash (tema gelap emerald):**
+- Tampilan dirombak total: tema gelap (#0E141C), aksen emerald, font Plus Jakarta Sans (judul/angka) + Inter (isi), kartu rounded-2xl, bottom bar baru (Beranda, Analisis, + di tengah, Anggaran, Akun).
+- Beranda: Total Saldo Bersih + pemilih bulan + tombol mata + tren vs bulan lalu; kartu Pemasukan/Pengeluaran + % + label sehat/terkendali; grafik tren arus kas 7 hari + badge puncak; 4 aksi cepat (Transfer, Tarik Kas, Atur Pos, Ekspor); Transaksi Terbaru + nama dompet per baris.
+- Analisis: filter Minggu Ini / Bulan Ini / 3 Bulan / Tahun Ini; Arus Kas Bersih + surplus % + bar proporsi; donut + legend; Insight dari pola catatan; kategori pengeluaran terbesar terurut; ekspor tetap CSV.
+- Catat Transaksi: switcher Pengeluaran/Pemasukan/Transfer, nominal besar, grid kategori 3 kolom, insight mikro (% dari sisa anggaran).
+- Anggaran: Sisa Anggaran Bulanan + progress bar, pos anggaran + status, grid dompet 2x2; semua fitur lama tetap ada. Tanpa perubahan skema DB (v4 tetap). Lampiran foto struk belum ada (butuh penyimpanan + kolom baru) — ditunda.
+
 **v1.5.1 — Kembali ke desain v1.4.0 (Beranda lengkap):**
 - Desain minimalis v1.5.0 dibatalkan — Beranda kembali lengkap seperti v1.4.0: grafik 7 hari / 6 bulan, donut per kategori, cincin anggaran, kartu target tabungan, kartu Perhatian, dan kartu ringkasan dompet. Semua fitur v1.4.0 tetap ada. Tanpa perubahan skema DB (v4 tetap).
 

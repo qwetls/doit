@@ -31,6 +31,21 @@ fun formatSignedMoney(amount: Long, isIncome: Boolean, currency: Currency): Stri
     return (if (isIncome) "+" else "-") + formatMoney(amount, currency)
 }
 
+/** Angka ringkas untuk badge grafik: Rp 3.5jt, Rp 420rb, Rp 58. */
+fun formatCompact(amount: Long): String {
+    val abs = kotlin.math.abs(amount)
+    val sign = if (amount < 0) "-" else ""
+    return when {
+        abs >= 1_000_000L -> {
+            val v = abs / 1_000_000.0
+            val text = if (v == kotlin.math.floor(v)) v.toInt().toString() else "%.1f".format(v)
+            sign + "Rp " + text + "jt"
+        }
+        abs >= 1_000L -> sign + "Rp " + (abs / 1_000L) + "rb"
+        else -> sign + "Rp " + abs
+    }
+}
+
 fun formatDate(epochDay: Long): String {
     val date = LocalDate.ofEpochDay(epochDay)
     return date.format(DateTimeFormatter.ofPattern("EEE, d MMM yyyy", indonesia))

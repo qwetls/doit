@@ -25,8 +25,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DateRangePicker
-import androidx.compose.material3.DateRangePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -276,6 +276,7 @@ fun ReportsScreen(viewModel: MainViewModel, onNavigate: (DoitTab) -> Unit) {
         }
 
         DoitCard {
+            val change = report.insightExpenseChangePct
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -303,7 +304,6 @@ fun ReportsScreen(viewModel: MainViewModel, onNavigate: (DoitTab) -> Unit) {
                         color = Emerald
                     )
                 }
-                val change = report.insightExpenseChangePct
                 val (label, labelColor) = when {
                     change == null -> "Belum ada pembanding" to MaterialTheme.colorScheme.onSurfaceVariant
                     change < 0 -> "Efisiensi Tinggi" to Emerald
@@ -523,7 +523,7 @@ private fun CustomRangePickerDialog(
         initialSelectedStartDateMillis = initialStart,
         initialSelectedEndDateMillis = initialEnd
     )
-    DateRangePickerDialog(
+    DatePickerDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
             TextButton(

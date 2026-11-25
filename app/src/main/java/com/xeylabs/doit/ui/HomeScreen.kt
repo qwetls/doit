@@ -54,6 +54,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.xeylabs.doit.DoitTab
 import com.xeylabs.doit.data.Currency
+import com.xeylabs.doit.data.Transaction
 import com.xeylabs.doit.data.TxnType
 import com.xeylabs.doit.ui.theme.Emerald
 import com.xeylabs.doit.ui.theme.ExpenseRed
@@ -80,6 +81,7 @@ fun HomeScreen(
     val displayName by viewModel.displayName.collectAsState()
     val scrollState = rememberScrollState()
     var balanceHidden by remember { mutableStateOf(false) }
+    var editingTx by remember { mutableStateOf<Transaction?>(null) }
 
     val defaultCurrency = Currency.fromCode(state.defaultCurrency)
     val balance = state.monthIncome - state.monthExpense
@@ -403,6 +405,7 @@ fun HomeScreen(
                     state.recent.forEach { tx ->
                         TransactionRow(
                             tx = tx,
+                            onEdit = { editingTx = tx },
                             currency = viewModel.walletCurrency(tx.walletId),
                             walletName = viewModel.walletName(tx.walletId),
                             customCategories = customs
@@ -433,6 +436,15 @@ fun HomeScreen(
             )
         }
         Spacer(modifier = Modifier.height(96.dp))
+    }
+
+    val txToEdit = editingTx
+    if (txToEdit != null) {
+        EditTransactionDialog(
+            tx = txToEdit,
+            viewModel = viewModel,
+            onDismiss = { editingTx = null }
+        )
     }
 }
 

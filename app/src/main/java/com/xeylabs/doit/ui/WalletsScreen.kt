@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -158,6 +159,7 @@ fun WalletsSection(viewModel: MainViewModel) {
                                 wallet = walletBalance.wallet,
                                 balance = walletBalance.balance,
                                 onClick = { showWalletEdit = walletBalance.wallet },
+                                onEdit = { showWalletEdit = walletBalance.wallet },
                                 onDelete = if (wallets.size > 1) {
                                     { walletToDelete = walletBalance.wallet }
                                 } else null,
@@ -242,6 +244,7 @@ private fun WalletGridCell(
     wallet: Wallet,
     balance: Long,
     onClick: () -> Unit,
+    onEdit: () -> Unit,
     onDelete: (() -> Unit)?,
     modifier: Modifier = Modifier
 ) {
@@ -275,17 +278,30 @@ private fun WalletGridCell(
                         modifier = Modifier.size(16.dp)
                     )
                 }
-                if (onDelete != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(
-                        onClick = onDelete,
+                        onClick = onEdit,
                         modifier = Modifier.size(28.dp)
                     ) {
                         Icon(
-                            Icons.Filled.Delete,
-                            contentDescription = "Hapus dompet",
+                            Icons.Filled.Edit,
+                            contentDescription = "Ubah dompet",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(16.dp)
                         )
+                    }
+                    if (onDelete != null) {
+                        IconButton(
+                            onClick = onDelete,
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.Delete,
+                                contentDescription = "Hapus dompet",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
             }

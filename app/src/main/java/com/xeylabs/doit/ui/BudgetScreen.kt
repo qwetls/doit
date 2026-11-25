@@ -58,11 +58,9 @@ fun BudgetSection(viewModel: MainViewModel) {
     val customCategories by viewModel.customCategories.collectAsState()
     val monthSpent by viewModel.monthCategorySpent.collectAsState()
     var incomeText by remember(state.monthlyIncome) { mutableStateOf(state.monthlyIncome.toString()) }
-    var belanjaText by remember(state.budgetBelanja) { mutableStateOf(state.budgetBelanja.toString()) }
-    var daruratText by remember(state.budgetDarurat) { mutableStateOf(state.budgetDarurat.toString()) }
-    var tabunganText by remember(state.budgetTabungan) { mutableStateOf(state.budgetTabungan.toString()) }
     var savedMessage by remember { mutableStateOf("") }
     var showAddPosition by remember { mutableStateOf(false) }
+    var fixedBudgetToEdit by remember { mutableStateOf<FixedBudgetKind?>(null) }
     var positionToEdit by remember { mutableStateOf<BudgetPosition?>(null) }
     var positionToDelete by remember { mutableStateOf<BudgetPosition?>(null) }
 
@@ -78,7 +76,7 @@ fun BudgetSection(viewModel: MainViewModel) {
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(
-            "Patokan dari gaji Rp1.000.000: 200rb belanja, 100rb darurat, 700rb tabungan. Ubah sesuai kebutuhanmu.",
+            "Patokan dari gaji Rp1.000.000: 200rb belanja, 100rb darurat, 700rb tabungan. Ketuk tombol pensil di tiap pos untuk mengubahnya.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -144,21 +142,24 @@ fun BudgetSection(viewModel: MainViewModel) {
                     spent = state.belanjaSpent,
                     budget = state.budgetBelanja,
                     isSavings = false,
-                    category = builtinCategoryRef(Category.BELANJA)
+                    category = builtinCategoryRef(Category.BELANJA),
+                    onEdit = { fixedBudgetToEdit = FixedBudgetKind.BELANJA }
                 )
                 UsageRow(
                     label = "Dana darurat",
                     spent = state.daruratSpent,
                     budget = state.budgetDarurat,
                     isSavings = false,
-                    category = builtinCategoryRef(Category.DARURAT)
+                    category = builtinCategoryRef(Category.DARURAT),
+                    onEdit = { fixedBudgetToEdit = FixedBudgetKind.DARURAT }
                 )
                 UsageRow(
                     label = "Tabungan (terkumpul bulan ini)",
                     spent = savedThisMonth,
                     budget = state.budgetTabungan,
                     isSavings = true,
-                    category = builtinCategoryRef(Category.LAIN_KELUAR)
+                    category = builtinCategoryRef(Category.LAIN_KELUAR),
+                    onEdit = { fixedBudgetToEdit = FixedBudgetKind.TABUNGAN }
                 )
                 positions.forEach { position ->
                     UsageRow(
@@ -186,22 +187,11 @@ fun BudgetSection(viewModel: MainViewModel) {
             SectionTitle("Ubah anggaran")
             Spacer(modifier = Modifier.height(12.dp))
             BudgetField("Pemasukan bulanan (Rp)", incomeText) { incomeText = it }
-            BudgetField("Belanja harian (Rp)", belanjaText) { belanjaText = it }
-            BudgetField("Dana darurat (Rp)", daruratText) { daruratText = it }
-            BudgetField("Jatah tabungan (Rp)", tabunganText) { tabunganText = it }
             Button(
                 onClick = {
                     val income = incomeText.toLongOrNull()
-                    val belanja = belanjaText.toLongOrNull()
-                    val darurat = daruratText.toLongOrNull()
-                    val tabungan = tabunganText.toLongOrNull()
-                    if (income != null && income > 0 && belanja != null && belanja >= 0 &&
-                        darurat != null && darurat >= 0 && tabungan != null && tabungan >= 0
-                    ) {
+                    if (income != null && income > 0) {
                         viewModel.setMonthlyIncome(income)
-                        viewModel.setBudgetBelanja(belanja)
-                        viewModel.setBudgetDarurat(darurat)
-                        viewModel.setBudgetTabungan(tabungan)
                         savedMessage = "Anggaran disimpan"
                     } else {
                         savedMessage = "Periksa lagi angkanya — pemasukan harus lebih dari 0"
@@ -214,6 +204,33 @@ fun BudgetSection(viewModel: MainViewModel) {
             if (savedMessage.isNotBlank()) {
                 Text(savedMessage, style = MaterialTheme.typography.bodyMedium)
             }
+        }
+
+        val editingFixed = fixedBudgetToEdit
+        if (editingFixed != null) {
+            val fixedLabel = when (editingFixed) {
+                FixedBudgetKind.BELANJA -> "Belanja harian"
+                FixedBudgetKind.DARURAT -> "Dana darurat"
+                FixedBudgetKind.TABUNGAN -> "Tabungan"
+            }
+            val fixedCurrent = when (editingFixed) {
+                FixedBudgetKind.BELANJA -> state.budgetBelanja
+                FixedBudgetKind.DARURAT -> state.budgetDarurat
+                FixedBudgetKind.TABUNGAN -> state.budgetTabungan
+            }
+            FixedBudgetEditDialog(
+                label = fixedLabel,
+                currentAmount = fixedCurrent,
+                onDismiss = { fixedBudgetToEdit = null },
+                onSave = { amount ->
+                    when (editingFixed) {
+                        FixedBudgetKind.BELANJA -> viewModel.setBudgetBelanja(amount)
+                        FixedBudgetKind.DARURAT -> viewModel.setBudgetDarurat(amount)
+                        FixedBudgetKind.TABUNGAN -> viewModel.setBudgetTabungan(amount)
+                    }
+                    fixedBudgetToEdit = null
+                }
+            )
         }
 
         if (showAddPosition) {
@@ -363,6 +380,54 @@ private fun BudgetField(label: String, value: String, onValueChange: (String) ->
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         singleLine = true,
         modifier = Modifier.fillMaxWidth()
+    )
+}
+
+private enum class FixedBudgetKind {
+    BELANJA, DARURAT, TABUNGAN
+}
+
+@Composable
+private fun FixedBudgetEditDialog(
+    label: String,
+    currentAmount: Long,
+    onDismiss: () -> Unit,
+    onSave: (Long) -> Unit
+) {
+    var amountText by remember { mutableStateOf(currentAmount.toString()) }
+    var error by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Ubah $label") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = { amountText = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Jumlah (Rp)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (error.isNotBlank()) {
+                    Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                val amount = amountText.toLongOrNull()
+                if (amount == null || amount < 0) {
+                    error = "Isi jumlah yang benar"
+                    return@Button
+                }
+                onSave(amount)
+            }) { Text("Simpan") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Batal") }
+        }
     )
 }
 

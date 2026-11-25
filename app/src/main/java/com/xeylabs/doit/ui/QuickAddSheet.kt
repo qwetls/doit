@@ -1,5 +1,7 @@
 package com.xeylabs.doit.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -7,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -20,11 +23,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.Backspace
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -50,11 +56,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.xeylabs.doit.data.Category
+import com.xeylabs.doit.data.Receipts
 import com.xeylabs.doit.data.TxnType
 import com.xeylabs.doit.data.walletCurrency
 import com.xeylabs.doit.ui.theme.Emerald
@@ -76,6 +84,17 @@ fun QuickAddSheet(
     val lastWalletId by viewModel.lastWalletId.collectAsState()
     val state by viewModel.uiState.collectAsState()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val context = LocalContext.current
+    var receiptPath by remember { mutableStateOf<String?>(null) }
+    var receiptSaved by remember { mutableStateOf(false) }
+    var receiptError by remember { mutableStateOf("") }
+    val pickReceipt = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            if (receiptPath != null) Receipts.deleteReceipt(context, receiptPath)
+            val saved = Receipts.saveReceipt(context, uri)
+            if (saved != null) receiptPath = saved else receiptError = "Foto struk gagal disimpan"
+        }
+    }
 
     var type by remember { mutableStateOf(initialType ?: TxnType.EXPENSE) }
     var amount by remember { mutableStateOf(0L) }
@@ -109,7 +128,10 @@ fun QuickAddSheet(
     val amountCurrency = if (isTransfer) fromCurrency else walletCurrency
 
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            if (!receiptSaved) Receipts.deleteReceipt(context, receiptPath)
+            onDismiss()
+        },
         sheetState = sheetState
     ) {
         Column(
@@ -315,6 +337,75 @@ fun QuickAddSheet(
                 modifier = Modifier.fillMaxWidth()
             )
 
+            if (!isTransfer) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Lampiran Struk Fisik / QR",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    StatusPill(text = "Opsional", color = Emerald)
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(
+                        onClick = { pickReceipt.launch("image/*") },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        )
+                    ) {
+                        Icon(Icons.Filled.AddAPhoto, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Unggah Foto Struk")
+                    }
+                    Box(
+                        modifier = Modifier.size(56.dp, 48.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (receiptPath != null) {
+                            ReceiptImage(
+                                relativePath = receiptPath,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            IconButton(
+                                onClick = {
+                                    Receipts.deleteReceipt(context, receiptPath)
+                                    receiptPath = null
+                                },
+                                modifier = Modifier.align(Alignment.TopEnd).size(20.dp)
+                            ) {
+                                Icon(
+                                    Icons.Filled.Close,
+                                    contentDescription = "Hapus struk",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        } else {
+                            Icon(
+                                Icons.Filled.Receipt,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                if (receiptError.isNotBlank()) {
+                    Text(receiptError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+
             if (!isTransfer && type == TxnType.EXPENSE && amount > 0) {
                 val budgetPair = when (category) {
                     Category.BELANJA -> "Belanja harian" to (state.budgetBelanja - state.belanjaSpent)
@@ -362,6 +453,10 @@ fun QuickAddSheet(
                             crossCurrency && (received == null || received <= 0) ->
                                 error = "Isi jumlah yang diterima dompet tujuan"
                             else -> {
+                                if (receiptPath != null) {
+                                    Receipts.deleteReceipt(context, receiptPath)
+                                    receiptPath = null
+                                }
                                 viewModel.addTransfer(fromWalletId, toWalletId, amount, received, date, note)
                                 onDismiss()
                             }
@@ -372,7 +467,8 @@ fun QuickAddSheet(
                         error = "Masukkan jumlah lebih dari 0"
                         return@Button
                     }
-                    viewModel.addTransaction(type, category, amount, date, note, walletId = effectiveWalletId)
+                    viewModel.addTransaction(type, category, amount, date, note, walletId = effectiveWalletId, receiptPath = receiptPath)
+                    receiptSaved = true
                     onDismiss()
                 },
                 modifier = Modifier.fillMaxWidth(),

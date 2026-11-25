@@ -1,8 +1,10 @@
 package com.xeylabs.doit.ui
 
+import android.graphics.BitmapFactory
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -41,11 +43,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.xeylabs.doit.data.Category as DoitCategory
+import com.xeylabs.doit.data.Receipts
 import com.xeylabs.doit.data.TxnType
 import com.xeylabs.doit.data.WalletType
 import com.xeylabs.doit.ui.theme.CardBorder
@@ -172,6 +178,28 @@ fun CategoryIconTile(category: DoitCategory, size: Int = 40, tint: Color? = null
             contentDescription = null,
             tint = color,
             modifier = Modifier.size((size * 0.5).dp)
+        )
+    }
+}
+
+@Composable
+fun ReceiptImage(relativePath: String?, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val bitmap = remember(relativePath) {
+        val file = Receipts.receiptFile(context, relativePath) ?: return@remember null
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, bounds)
+        var sample = 1
+        while (bounds.outWidth / sample > 512 || bounds.outHeight / sample > 512) sample *= 2
+        val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+        BitmapFactory.decodeFile(file.absolutePath, opts)
+    }
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = "Struk",
+            contentScale = ContentScale.Crop,
+            modifier = modifier
         )
     }
 }

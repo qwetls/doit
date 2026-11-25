@@ -2,6 +2,14 @@
 
 Aplikasi pencatat uang yang ringan — money management untuk gaji Rp1.000.000/bulan.
 
+**v1.7.0 — Samakan persis fitur + UI contoh FluxCash:**
+- Lampiran Struk foto di Catat Transaksi (tombol "Unggah Foto Struk" + thumbnail, tersimpan internal, tampil juga saat ubah transaksi, ikut terhapus saat transaksi dihapus).
+- + Tambah Pos Anggaran di bawah 3 pos tetap (Belanja/Darurat/Tabungan) — tambah/ubah/hapus, total overview ikut menghitung pos tambahan.
+- Unduh Laporan Arus Kas (PDF) di Analisis — PDF asli dibagikan lewat FileProvider; ekspor CSV tetap ada.
+- Pilih rentang tanggal sendiri di Analisis (tombol kalender + pemilih rentang tanggal).
+- Kartu Smart Insights AI — judul + label efisiensi + persen nyata dari data (perubahan pengeluaran vs periode sebelumnya, tingkat tabungan).
+- Migrasi aman ke database v5 (kolom struk + tabel pos anggaran). Pill "Alokasi Kas Otomatis" sengaja tidak dibuat (tidak ada perilaku jelas di baliknya).
+
 **v1.6.0 — UI baru ala FluxCash (tema gelap emerald):**
 - Tampilan dirombak total: tema gelap (#0E141C), aksen emerald, font Plus Jakarta Sans (judul/angka) + Inter (isi), kartu rounded-2xl, bottom bar baru (Beranda, Analisis, + di tengah, Anggaran, Akun).
 - Beranda: Total Saldo Bersih + pemilih bulan + tombol mata + tren vs bulan lalu; kartu Pemasukan/Pengeluaran + % + label sehat/terkendali; grafik tren arus kas 7 hari + badge puncak; 4 aksi cepat (Transfer, Tarik Kas, Atur Pos, Ekspor); Transaksi Terbaru + nama dompet per baris.

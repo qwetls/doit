@@ -51,6 +51,17 @@ fun formatDate(epochDay: Long): String {
     return date.format(DateTimeFormatter.ofPattern("EEE, d MMM yyyy", indonesia))
 }
 
+fun formatShortDate(epochDay: Long): String {
+    val date = LocalDate.ofEpochDay(epochDay)
+    return date.format(DateTimeFormatter.ofPattern("d MMM yyyy", indonesia))
+}
+
+fun formatShortDateMillis(millis: Long): String {
+    val date = java.time.Instant.ofEpochMilli(millis)
+        .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+    return date.format(DateTimeFormatter.ofPattern("d MMM yyyy", indonesia))
+}
+
 fun formatMonth(month: YearMonth): String {
     return month.format(DateTimeFormatter.ofPattern("MMMM yyyy", indonesia))
 }

@@ -2,16 +2,22 @@ package com.xeylabs.doit.viewmodel
 
 import android.app.Application
 import android.content.Intent
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.pdf.PdfDocument
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.xeylabs.doit.data.AppDatabase
 import com.xeylabs.doit.data.Bill
+import com.xeylabs.doit.data.BudgetPosition
 import com.xeylabs.doit.data.Category
 import com.xeylabs.doit.data.Currency
 import com.xeylabs.doit.data.Debt
 import com.xeylabs.doit.data.DebtDirection
 import com.xeylabs.doit.data.DebtKind
+import com.xeylabs.doit.data.Receipts
 import com.xeylabs.doit.data.RecurringFrequency
 import com.xeylabs.doit.data.RecurringTransaction
 import com.xeylabs.doit.data.SavingsGoal
@@ -23,6 +29,7 @@ import com.xeylabs.doit.data.WalletType
 import com.xeylabs.doit.data.walletCurrency
 import com.xeylabs.doit.widget.DoitWidgetProvider
 import java.io.File
+import java.io.FileOutputStream
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -31,9 +38,12 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
+import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 import kotlin.math.ceil
 
@@ -94,7 +104,9 @@ data class ReportUiState(
     val monthExpenseByCurrency: Map<String, Long> = emptyMap(),
     val perCategory: List<CategorySpend> = emptyList(),
     val perWallet: List<WalletMonthSpend> = emptyList(),
-    val perSource: List<IncomeSourceSpend> = emptyList()
+    val perSource: List<IncomeSourceSpend> = emptyList(),
+    val insightExpenseChangePct: Int? = null,
+    val insightSavingsRatePct: Int? = null
 )
 
 private val indonesia = Locale("in", "ID")
@@ -106,21 +118,43 @@ enum class ReportRange(val label: String) {
     WEEK("Minggu Ini"),
     MONTH("Bulan Ini"),
     QUARTER("3 Bulan"),
-    YEAR("Tahun Ini")
+    YEAR("Tahun Ini"),
+    CUSTOM("Kustom")
 }
 
-private fun inReportRange(date: LocalDate, range: ReportRange, month: YearMonth): Boolean {
+private fun millisToLocalDate(millis: Long): LocalDate =
+    Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+
+private fun reportRangeBounds(
+    range: ReportRange,
+    month: YearMonth,
+    customRange: Pair<Long, Long>?
+): Pair<LocalDate, LocalDate> {
     val today = LocalDate.now()
     return when (range) {
-        ReportRange.WEEK -> !date.isBefore(today.minusDays(6)) && !date.isAfter(today)
-        ReportRange.MONTH -> YearMonth.from(date) == month
+        ReportRange.WEEK -> today.minusDays(6) to today
+        ReportRange.MONTH -> month.atDay(1) to month.atEndOfMonth()
         ReportRange.QUARTER -> {
-            val ym = YearMonth.from(date)
             val nowYm = YearMonth.now()
-            !ym.isBefore(nowYm.minusMonths(2)) && !ym.isAfter(nowYm)
+            nowYm.minusMonths(2).atDay(1) to nowYm.atEndOfMonth()
         }
-        ReportRange.YEAR -> date.year == today.year
+        ReportRange.YEAR -> LocalDate.of(today.year, 1, 1) to LocalDate.of(today.year, 12, 31)
+        ReportRange.CUSTOM -> {
+            val custom = customRange
+            if (custom == null) today to today
+            else millisToLocalDate(custom.first) to millisToLocalDate(custom.second)
+        }
     }
+}
+
+private fun inReportRange(
+    date: LocalDate,
+    range: ReportRange,
+    month: YearMonth,
+    customRange: Pair<Long, Long>? = null
+): Boolean {
+    val (start, end) = reportRangeBounds(range, month, customRange)
+    return !date.isBefore(start) && !date.isAfter(end)
 }
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -131,10 +165,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val recurringDao = db.recurringDao()
     private val debtDao = db.debtDao()
     private val billDao = db.billDao()
+    private val budgetPositionDao = db.budgetPositionDao()
     private val settings = SettingsStore(app)
 
     val selectedMonth = MutableStateFlow(YearMonth.now())
     val reportRange = MutableStateFlow(ReportRange.MONTH)
+    val customRange = MutableStateFlow<Pair<Long, Long>?>(null)
+    val reportRangeSelection: StateFlow<Pair<ReportRange, Pair<Long, Long>?>> =
+        combine(reportRange, customRange) { range, custom -> range to custom }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ReportRange.MONTH to null)
     val historyCategory = MutableStateFlow<Category?>(null)
     val historyWalletId = MutableStateFlow<Long?>(null)
     val searchQuery = MutableStateFlow("")
@@ -170,6 +209,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val bills: StateFlow<List<Bill>> = billDao.getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val budgetPositions: StateFlow<List<BudgetPosition>> = budgetPositionDao.getAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val monthCategorySpent: StateFlow<Map<Category, Long>> = combine(
+        allTransactions, selectedMonth, wallets
+    ) { txs, month, walletList ->
+        val defaultId = walletList.firstOrNull()?.id
+        txs.filter {
+            it.type == TxnType.EXPENSE.name &&
+                YearMonth.from(LocalDate.ofEpochDay(it.dateEpochDay)) == month &&
+                (walletList.firstOrNull { w -> w.id == (it.walletId ?: defaultId) }?.currency ?: "IDR") == "IDR"
+        }.groupBy { Category.fromName(it.category) }
+            .mapValues { (_, list) -> list.sumOf { it.amount } }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
     val recentCategories: StateFlow<List<Category>> = allTransactions
         .map { txs ->
             txs.filter { it.type == TxnType.EXPENSE.name }
@@ -196,23 +250,42 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val reportState: StateFlow<ReportUiState> = combine(
-        allTransactions, selectedMonth, wallets, settings.defaultCurrency, reportRange
-    ) { txs, month, walletList, currency, range ->
+        allTransactions, selectedMonth, wallets, settings.defaultCurrency, reportRangeSelection
+    ) { txs, month, walletList, currency, rangeSelection ->
+        val (range, custom) = rangeSelection
         val defaultId = walletList.firstOrNull()?.id
         fun txCurrency(tx: Transaction): String =
             walletList.firstOrNull { it.id == (tx.walletId ?: defaultId) }?.currency ?: "IDR"
         val dcTxs = txs.filter { txCurrency(it) == currency }
-        val inRange = dcTxs.filter { inReportRange(LocalDate.ofEpochDay(it.dateEpochDay), range, month) }
+        val inRange = dcTxs.filter { inReportRange(LocalDate.ofEpochDay(it.dateEpochDay), range, month, custom) }
         val income = inRange.filter { it.type == TxnType.INCOME.name }.sumOf { it.amount }
         val expense = inRange.filter { it.type == TxnType.EXPENSE.name }.sumOf { it.amount }
         val incomeByCurrency = txs
-            .filter { it.type == TxnType.INCOME.name && inReportRange(LocalDate.ofEpochDay(it.dateEpochDay), range, month) }
+            .filter { it.type == TxnType.INCOME.name && inReportRange(LocalDate.ofEpochDay(it.dateEpochDay), range, month, custom) }
             .groupBy { txCurrency(it) }
             .mapValues { (_, list) -> list.sumOf { it.amount } }
         val expenseByCurrency = txs
-            .filter { it.type == TxnType.EXPENSE.name && inReportRange(LocalDate.ofEpochDay(it.dateEpochDay), range, month) }
+            .filter { it.type == TxnType.EXPENSE.name && inReportRange(LocalDate.ofEpochDay(it.dateEpochDay), range, month, custom) }
             .groupBy { txCurrency(it) }
             .mapValues { (_, list) -> list.sumOf { it.amount } }
+        val (rangeStart, rangeEnd) = reportRangeBounds(range, month, custom)
+        val prevEnd = rangeStart.minusDays(1)
+        val prevStart = prevEnd.minusDays(ChronoUnit.DAYS.between(rangeStart, rangeEnd))
+        val prevExpense = dcTxs.filter {
+            it.type == TxnType.EXPENSE.name &&
+                !LocalDate.ofEpochDay(it.dateEpochDay).isBefore(prevStart) &&
+                !LocalDate.ofEpochDay(it.dateEpochDay).isAfter(prevEnd)
+        }.sumOf { it.amount }
+        val expenseChangePct = if (prevExpense > 0) {
+            ((expense - prevExpense) * 100 / prevExpense).toInt()
+        } else {
+            null
+        }
+        val savingsRatePct = if (income > 0) {
+            ((income - expense) * 100 / income).toInt()
+        } else {
+            null
+        }
         ReportUiState(
             monthIncome = income,
             monthExpense = expense,
@@ -229,7 +302,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 .sortedByDescending { it.amount },
             perWallet = walletList.map { wallet ->
                 val walletTxs = txs.filter { (it.walletId ?: defaultId) == wallet.id }
-                val walletInRange = walletTxs.filter { inReportRange(LocalDate.ofEpochDay(it.dateEpochDay), range, month) }
+                val walletInRange = walletTxs.filter { inReportRange(LocalDate.ofEpochDay(it.dateEpochDay), range, month, custom) }
                 val transferIn = walletInRange
                     .filter { it.type == TxnType.TRANSFER.name && it.transferToWalletId == wallet.id }
                     .sumOf { it.transferReceivedAmount ?: it.amount }
@@ -242,7 +315,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     expense = walletInRange.filter { it.type == TxnType.EXPENSE.name }.sumOf { it.amount } + transferOut
                 )
             },
-            perSource = computeIncomeBySourceRange(txs, range, month, currency, walletList)
+            perSource = computeIncomeBySourceRange(txs, range, month, currency, walletList, custom),
+            insightExpenseChangePct = expenseChangePct,
+            insightSavingsRatePct = savingsRatePct
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ReportUiState())
 
@@ -343,12 +418,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         range: ReportRange,
         month: YearMonth,
         currency: String,
-        walletList: List<Wallet>
+        walletList: List<Wallet>,
+        customRange: Pair<Long, Long>? = null
     ): List<IncomeSourceSpend> {
         val defaultId = walletList.firstOrNull()?.id
         return txs.filter {
             it.type == TxnType.INCOME.name &&
-                inReportRange(LocalDate.ofEpochDay(it.dateEpochDay), range, month) &&
+                inReportRange(LocalDate.ofEpochDay(it.dateEpochDay), range, month, customRange) &&
                 (walletList.firstOrNull { w -> w.id == (it.walletId ?: defaultId) }?.currency ?: "IDR") == currency
         }
             .groupBy { Category.fromName(it.category) }
@@ -698,7 +774,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         amount: Long,
         date: LocalDate,
         note: String,
-        walletId: Long? = null
+        walletId: Long? = null,
+        receiptPath: String? = null
     ) {
         viewModelScope.launch {
             val resolved = walletId ?: resolveDefaultWalletId()
@@ -709,7 +786,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     amount = amount,
                     dateEpochDay = date.toEpochDay(),
                     note = note.trim(),
-                    walletId = resolved
+                    walletId = resolved,
+                    receiptPath = receiptPath
                 )
             )
             if (resolved != null) settings.setLastWalletId(resolved)
@@ -764,6 +842,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteTransaction(tx: Transaction) {
         viewModelScope.launch {
             dao.delete(tx)
+            Receipts.deleteReceipt(getApplication(), tx.receiptPath)
             DoitWidgetProvider.refresh(getApplication())
         }
     }
@@ -870,6 +949,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { billDao.delete(bill) }
     }
 
+
+    fun addBudgetPosition(name: String, category: Category, limitAmount: Long) {
+        viewModelScope.launch {
+            budgetPositionDao.insert(
+                BudgetPosition(name = name.trim(), category = category.name, limitAmount = limitAmount)
+            )
+        }
+    }
+
+    fun updateBudgetPosition(position: BudgetPosition) {
+        viewModelScope.launch { budgetPositionDao.update(position) }
+    }
+
+    fun deleteBudgetPosition(position: BudgetPosition) {
+        viewModelScope.launch { budgetPositionDao.delete(position) }
+    }
+
     /** Tandai tagihan bulan ini lunas + catat sebagai pengeluaran (Rp) di dompet Rupiah. */
     fun markBillPaid(bill: Bill) {
         viewModelScope.launch {
@@ -951,6 +1047,127 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         return month.format(DateTimeFormatter.ofPattern("MMMM yyyy", indonesia))
     }
 
+    private fun formatAmountPdf(amount: Long, currency: Currency): String {
+        return when (currency) {
+            Currency.IDR -> "Rp" + java.text.NumberFormat.getNumberInstance(indonesia).format(amount)
+            Currency.USD -> "$" + java.text.NumberFormat.getNumberInstance(java.util.Locale.US).format(amount)
+        }
+    }
+
+    private fun formatShortRangeLabel(start: LocalDate, end: LocalDate): String {
+        val fmt = DateTimeFormatter.ofPattern("d MMM yyyy", indonesia)
+        return start.format(fmt) + " – " + end.format(fmt)
+    }
+
+    fun exportPdf() {
+        viewModelScope.launch {
+            try {
+                val report = reportState.value
+                val range = reportRange.value
+                val month = selectedMonth.value
+                val custom = customRange.value
+                val currency = Currency.fromCode(report.defaultCurrency)
+                val (start, end) = reportRangeBounds(range, month, custom)
+                val periodLabel = when (range) {
+                    ReportRange.MONTH -> month.format(DateTimeFormatter.ofPattern("MMMM yyyy", indonesia))
+                    ReportRange.CUSTOM -> formatShortRangeLabel(start, end)
+                    else -> range.label + " · " + formatShortRangeLabel(start, end)
+                }
+                val walletList = wallets.value
+                val defaultId = walletList.firstOrNull()?.id
+                fun txCurrency(tx: Transaction): String =
+                    walletList.firstOrNull { it.id == (tx.walletId ?: defaultId) }?.currency ?: "IDR"
+                val inRange = allTransactions.value.filter {
+                    val date = LocalDate.ofEpochDay(it.dateEpochDay)
+                    !date.isBefore(start) && !date.isAfter(end) && txCurrency(it) == report.defaultCurrency
+                }
+                val incomeCount = inRange.count { it.type == TxnType.INCOME.name }
+                val expenseCount = inRange.count { it.type == TxnType.EXPENSE.name }
+
+                val app = getApplication<Application>()
+                val pdf = PdfDocument()
+                val pageWidth = 595
+                val pageHeight = 842
+                var pageNo = 1
+                var page = pdf.startPage(PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNo).create())
+                var canvas: Canvas = page.canvas
+                var y = 56f
+                val titlePaint = Paint().apply { textSize = 20f; isFakeBoldText = true; color = Color.BLACK }
+                val sectionPaint = Paint().apply { textSize = 14f; isFakeBoldText = true; color = Color.BLACK }
+                val bodyPaint = Paint().apply { textSize = 12f; color = Color.BLACK }
+                val mutedPaint = Paint().apply { textSize = 11f; color = Color.DKGRAY }
+                val greenPaint = Paint().apply { textSize = 13f; isFakeBoldText = true; color = Color.rgb(16, 185, 129) }
+                val redPaint = Paint().apply { textSize = 13f; isFakeBoldText = true; color = Color.rgb(244, 63, 94) }
+                fun line(text: String, paint: Paint, gap: Float = 20f) {
+                    if (y + gap > pageHeight - 48) {
+                        pdf.finishPage(page)
+                        pageNo++
+                        page = pdf.startPage(PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNo).create())
+                        canvas = page.canvas
+                        y = 56f
+                    }
+                    canvas.drawText(text, 48f, y, paint)
+                    y += gap
+                }
+                line("do.it — Laporan Arus Kas", titlePaint, 30f)
+                line("Periode: $periodLabel", mutedPaint)
+                line("Dibuat: " + LocalDate.now().format(DateTimeFormatter.ofPattern("d MMMM yyyy", indonesia)), mutedPaint, 28f)
+                line("Pemasukan: " + formatAmountPdf(report.monthIncome, currency), bodyPaint)
+                line("Pengeluaran: " + formatAmountPdf(report.monthExpense, currency), bodyPaint)
+                line(
+                    "Arus kas bersih: " + (if (report.monthNet >= 0) "+" else "-") + formatAmountPdf(kotlin.math.abs(report.monthNet), currency),
+                    if (report.monthNet >= 0) greenPaint else redPaint,
+                    28f
+                )
+                line("Distribusi Pengeluaran", sectionPaint, 26f)
+                if (report.perCategory.isEmpty()) {
+                    line("Belum ada pengeluaran di periode ini.", mutedPaint, 26f)
+                } else {
+                    report.perCategory.forEach { item ->
+                        val pct = if (report.monthExpense > 0) (item.amount * 100 / report.monthExpense).toInt() else 0
+                        line(item.category.label + " · $pct% · " + formatAmountPdf(item.amount, currency), bodyPaint)
+                    }
+                    line("", bodyPaint, 8f)
+                }
+                line("Kategori Pengeluaran Terbesar", sectionPaint, 26f)
+                if (report.perCategory.isEmpty()) {
+                    line("Belum ada pengeluaran di periode ini.", mutedPaint, 26f)
+                } else {
+                    report.perCategory.forEachIndexed { index, item ->
+                        line("${index + 1}. ${item.category.label} · ${item.count} transaksi · " + formatAmountPdf(item.amount, currency), bodyPaint)
+                    }
+                    line("", bodyPaint, 8f)
+                }
+                line("Jumlah transaksi: ${inRange.size} ($incomeCount pemasukan, $expenseCount pengeluaran)", bodyPaint)
+                pdf.finishPage(page)
+                val dir = File(app.cacheDir, "exports").apply { mkdirs() }
+                val fileName = "doit-laporan-" + pdfFileSuffix(range, month) + ".pdf"
+                val file = File(dir, fileName)
+                FileOutputStream(file).use { pdf.writeTo(it) }
+                pdf.close()
+                val uri = FileProvider.getUriForFile(app, "com.xeylabs.doit.fileprovider", file)
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "application/pdf"
+                    putExtra(Intent.EXTRA_SUBJECT, "do.it — Laporan Arus Kas")
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                val chooser = Intent.createChooser(shareIntent, "Bagikan Laporan PDF").apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                app.startActivity(chooser)
+            } catch (e: Exception) {
+            }
+        }
+    }
+
+    private fun pdfFileSuffix(range: ReportRange, month: YearMonth): String {
+        return when (range) {
+            ReportRange.MONTH -> month.toString()
+            else -> range.name.lowercase()
+        }
+    }
+
 
     fun addGoal(name: String, target: Long) {
         viewModelScope.launch {
@@ -1018,8 +1235,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (!next.isAfter(YearMonth.now())) selectedMonth.value = next
     }
 
-    fun setReportRange(range: ReportRange) {
+    fun setReportRange(range: ReportRange, custom: Pair<Long, Long>? = null) {
+        if (range == ReportRange.CUSTOM && custom != null) customRange.value = custom
         reportRange.value = range
+    }
+
+    fun clearCustomRange() {
+        customRange.value = null
+        reportRange.value = ReportRange.MONTH
     }
 
     fun setHistoryCategory(category: Category?) {

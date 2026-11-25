@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -19,22 +20,37 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.TrendingUp
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DateRangePicker
+import androidx.compose.material3.DateRangePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.xeylabs.doit.DoitTab
 import com.xeylabs.doit.data.Currency
@@ -45,7 +61,6 @@ import com.xeylabs.doit.ui.theme.OutflowStrong
 import com.xeylabs.doit.ui.theme.SurfaceHighest
 import com.xeylabs.doit.ui.theme.WarningAmber
 import com.xeylabs.doit.ui.theme.categoryColor
-import com.xeylabs.doit.viewmodel.InsightKind
 import com.xeylabs.doit.viewmodel.MainViewModel
 import com.xeylabs.doit.viewmodel.ReportRange
 
@@ -53,10 +68,12 @@ import com.xeylabs.doit.viewmodel.ReportRange
 fun ReportsScreen(viewModel: MainViewModel, onNavigate: (DoitTab) -> Unit) {
     val month by viewModel.selectedMonth.collectAsState()
     val range by viewModel.reportRange.collectAsState()
+    val customRange by viewModel.customRange.collectAsState()
     val report by viewModel.reportState.collectAsState()
     val state by viewModel.uiState.collectAsState()
     val displayName by viewModel.displayName.collectAsState()
     val currency = Currency.fromCode(report.defaultCurrency)
+    var showRangePicker by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -66,14 +83,60 @@ fun ReportsScreen(viewModel: MainViewModel, onNavigate: (DoitTab) -> Unit) {
             onNavigate(DoitTab.AKUN)
         }
 
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(ReportRange.entries) { option ->
-                FilterChip(
-                    selected = range == option,
-                    onClick = { viewModel.setReportRange(option) },
-                    label = { Text(option.label) }
-                )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            LazyRow(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(ReportRange.entries) { option ->
+                    FilterChip(
+                        selected = range == option,
+                        onClick = {
+                            if (option == ReportRange.CUSTOM && customRange == null) {
+                                showRangePicker = true
+                            } else {
+                                viewModel.setReportRange(option)
+                            }
+                        },
+                        label = { Text(option.label) }
+                    )
+                }
             }
+            IconButton(onClick = { showRangePicker = true }) {
+                Icon(Icons.Filled.CalendarMonth, contentDescription = "Pilih rentang tanggal")
+            }
+        }
+        val custom = customRange
+        if (range == ReportRange.CUSTOM && custom != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    formatShortDateMillis(custom.first) + " – " + formatShortDateMillis(custom.second),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium
+                )
+                IconButton(onClick = { viewModel.clearCustomRange() }) {
+                    Icon(Icons.Filled.Close, contentDescription = "Hapus rentang kustom")
+                }
+            }
+        }
+        if (showRangePicker) {
+            CustomRangePickerDialog(
+                initialStart = customRange?.first,
+                initialEnd = customRange?.second,
+                onDismiss = { showRangePicker = false },
+                onConfirm = { start, end ->
+                    viewModel.setReportRange(ReportRange.CUSTOM, start to end)
+                    showRangePicker = false
+                }
+            )
         }
         if (range == ReportRange.MONTH) {
             MonthStepper(
@@ -212,53 +275,80 @@ fun ReportsScreen(viewModel: MainViewModel, onNavigate: (DoitTab) -> Unit) {
             }
         }
 
-        if (range == ReportRange.MONTH && state.insights.isNotEmpty()) {
-            DoitCard {
+        DoitCard {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    androidx.compose.material3.Icon(
-                        Icons.Filled.AutoAwesome,
-                        contentDescription = null,
-                        tint = Emerald
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column {
-                        Text(
-                            "Insight",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Emerald
-                        )
-                        Text(
-                            "Dari pola catatanmu",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Box(
+                        modifier = Modifier.size(36.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Emerald.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Filled.AutoAwesome,
+                            contentDescription = null,
+                            tint = Emerald,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        "Smart Insights AI",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Emerald
+                    )
                 }
-                Spacer(modifier = Modifier.height(12.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    state.insights.forEach { insight ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            val (icon, tint) = when (insight.kind) {
-                                InsightKind.GOOD -> Icons.Filled.CheckCircle to IncomeGreen
-                                InsightKind.WARN -> Icons.Filled.Warning to WarningAmber
-                                InsightKind.INFO -> Icons.Filled.TrendingUp to Emerald
+                val change = report.insightExpenseChangePct
+                val (label, labelColor) = when {
+                    change == null -> "Belum ada pembanding" to MaterialTheme.colorScheme.onSurfaceVariant
+                    change < 0 -> "Efisiensi Tinggi" to Emerald
+                    change > 0 -> "Pengeluaran Naik" to WarningAmber
+                    else -> "Stabil" to Emerald
+                }
+                StatusPill(text = label, color = labelColor)
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = buildAnnotatedString {
+                    val savings = report.insightSavingsRatePct
+                    if (change == null && savings == null) {
+                        append("Belum ada catatan di periode ini — ketuk + untuk mulai mencatat.")
+                    } else {
+                        if (change != null) {
+                            if (change < 0) {
+                                append("Pengeluaran Anda ")
+                                withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Emerald)) {
+                                    append("turun ${-change}%")
+                                }
+                                append(" dibanding periode sebelumnya. ")
+                            } else if (change > 0) {
+                                append("Pengeluaran Anda ")
+                                withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = ExpenseRed)) {
+                                    append("naik $change%")
+                                }
+                                append(" dibanding periode sebelumnya. ")
+                            } else {
+                                append("Pengeluaran Anda sama seperti periode sebelumnya. ")
                             }
-                            androidx.compose.material3.Icon(
-                                imageVector = icon,
-                                contentDescription = null,
-                                tint = tint,
-                                modifier = Modifier.padding(end = 8.dp)
-                            )
-                            Text(
-                                text = insight.text,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f)
-                            )
+                        }
+                        if (savings != null) {
+                            append("Anda berada di jalur aman untuk menabung ")
+                            withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Emerald)) {
+                                append("$savings%")
+                            }
+                            append(" pendapatan.")
+                        } else {
+                            append("Catat pemasukan supaya tingkat tabungan bisa dihitung.")
                         }
                     }
-                }
-            }
+                },
+                style = MaterialTheme.typography.bodyMedium
+            )
         }
 
         DoitCard {
@@ -370,6 +460,19 @@ fun ReportsScreen(viewModel: MainViewModel, onNavigate: (DoitTab) -> Unit) {
         DoitCard {
             SectionTitle("Ekspor")
             Spacer(modifier = Modifier.height(12.dp))
+            Button(
+                onClick = { viewModel.exportPdf() },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Emerald,
+                    contentColor = Color(0xFF003824)
+                )
+            ) {
+                Icon(Icons.Filled.FileDownload, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Unduh Laporan Arus Kas (PDF)")
+            }
+            Spacer(modifier = Modifier.height(12.dp))
             Text(
                 "Unduh semua transaksi bulan terpilih sebagai file CSV untuk diolah di spreadsheet.",
                 style = MaterialTheme.typography.bodyMedium,
@@ -405,5 +508,36 @@ private fun ReportRow(
             fontWeight = FontWeight.Medium,
             color = color
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CustomRangePickerDialog(
+    initialStart: Long?,
+    initialEnd: Long?,
+    onDismiss: () -> Unit,
+    onConfirm: (Long, Long) -> Unit
+) {
+    val state = rememberDateRangePickerState(
+        initialSelectedStartDateMillis = initialStart,
+        initialSelectedEndDateMillis = initialEnd
+    )
+    DateRangePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val start = state.selectedStartDateMillis
+                    val end = state.selectedEndDateMillis
+                    if (start != null && end != null) onConfirm(start, end)
+                }
+            ) { Text("Pilih") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Batal") }
+        }
+    ) {
+        DateRangePicker(state = state)
     }
 }

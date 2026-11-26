@@ -2,9 +2,10 @@
 
 Aplikasi pencatat uang yang ringan — money management untuk gaji Rp1.000.000/bulan.
 
-**v1.11.2 — Kategori baru: Rokok, Minuman, Hiburan, Kesehatan, Tagihan & Utilitas:**
-- 5 kategori pengeluaran baru dengan ikon dan warna sendiri; muncul di grid kategori, filter riwayat, dan laporan.
-- Kategori lama tidak berubah; tidak ada perubahan database.
+**v1.11.3 — Bayar paylater/utang kini berkategori sendiri:**
+- Kategori baru Paylater & Utang (pengeluaran) dan Piutang (pemasukan); `recordDebtPayment` kini memakai keduanya, bukan lagi Lain-lain.
+- Migrasi database v7 → v8 memindahkan pembayaran paylater/utang dan penerimaan piutang yang sudah tercatat ke kategori baru.
+- Tidak ada perubahan perilaku lain (batas bayar, lunas, dompet, alokasi otomatis tetap).
 
 **v1.7.0 — Samakan persis fitur + UI contoh FluxCash:**
 - Lampiran Struk foto di Catat Transaksi (tombol "Unggah Foto Struk" + thumbnail, tersimpan internal, tampil juga saat ubah transaksi, ikut terhapus saat transaksi dihapus).

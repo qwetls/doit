@@ -23,6 +23,8 @@ fun builtinColorHex(category: Category): Long = when (category) {
     Category.HIBURAN -> 0xFFA78BFAL
     Category.KESEHATAN -> 0xFFF43F5EL
     Category.TAGIHAN -> 0xFFF472B6L
+    Category.PAYLATER_UTANG -> 0xFF60A5FAL
+    Category.PIUTANG -> 0xFFA3E635L
     Category.LAIN_KELUAR -> 0xFF86948AL
     Category.TRANSFER -> 0xFF86948AL
     else -> 0xFF4EDEA3L

@@ -78,12 +78,12 @@ jobs:
           VERSION_NAME: ${{ steps.apk.outputs.version }}
         run: |
           cat > RELEASE_NOTES.md <<'EOF'
-          ## do.it v1.11.2 — Kategori baru: Rokok, Minuman, Hiburan, Kesehatan, Tagihan & Utilitas
+          ## do.it v1.11.3 — Bayar paylater/utang kini berkategori sendiri
 
-          - **5 kategori pengeluaran baru:** Rokok, Minuman, Hiburan, Kesehatan, dan Tagihan & Utilitas — kini muncul di grid kategori saat catat pengeluaran, di filter riwayat, dan di laporan, masing-masing dengan ikon dan warna sendiri. Sebelumnya pengeluaran seperti ini hanya bisa masuk "Lain-lain" atau kategori buatan sendiri.
-          - Kategori lama tidak berubah; pengeluaran di kategori baru tetap kehitung di total pengeluaran dan laporan seperti biasa.
+          - **Bayar paylater/utang tidak lagi masuk "Lain-lain":** ada kategori pengeluaran baru **Paylater & Utang**, dan pemasukan dari piutang yang dibayar balik kini berkategori **Piutang**. Pembayaran ke depan tercatat dengan kategori ini, lengkap dengan ikon dan warna sendiri di riwayat dan laporan.
+          - **Riwayat lama ikut dibenerin:** pembayaran paylater/utang dan penerimaan piutang yang sudah tercatat sebelumnya otomatis dipindah ke kategori baru saat aplikasi dibuka (migrasi database v7 → v8, hanya mengubah kategori baris-baris itu).
 
-          Tidak ada perubahan database.
+          Database v7 → v8 (migrasi resmi, tanpa hapus data).
 
           Published signed release and debug APKs.
           EOF
@@ -93,7 +93,7 @@ jobs:
             "${{ steps.apk.outputs.release_path }}.sha256" \
             "${{ steps.apk.outputs.debug_path }}" \
             "${{ steps.apk.outputs.debug_path }}.sha256" \
-            --title "do.it $RELEASE_TAG (Kategori baru: Rokok, Minuman, Hiburan, Kesehatan, Tagihan & Utilitas)" \
+            --title "do.it $RELEASE_TAG (Bayar paylater/utang kini berkategori sendiri)" \
             --notes-file RELEASE_NOTES.md \
             --latest
 

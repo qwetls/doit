@@ -9,6 +9,7 @@ enum class Category(val type: TxnType, val label: String) {
     GAJI(TxnType.INCOME, "Gaji pokok"),
     LEMBUR(TxnType.INCOME, "Lembur"),
     SAMPINGAN(TxnType.INCOME, "Sampingan"),
+    PIUTANG(TxnType.INCOME, "Piutang"),
     LAIN_MASUK(TxnType.INCOME, "Lain-lain"),
     BELANJA(TxnType.EXPENSE, "Belanja harian"),
     MAKAN(TxnType.EXPENSE, "Makan"),
@@ -19,6 +20,7 @@ enum class Category(val type: TxnType, val label: String) {
     HIBURAN(TxnType.EXPENSE, "Hiburan"),
     KESEHATAN(TxnType.EXPENSE, "Kesehatan"),
     TAGIHAN(TxnType.EXPENSE, "Tagihan & Utilitas"),
+    PAYLATER_UTANG(TxnType.EXPENSE, "Paylater & Utang"),
     LAIN_KELUAR(TxnType.EXPENSE, "Lain-lain"),
     TRANSFER(TxnType.TRANSFER, "Transfer");
 

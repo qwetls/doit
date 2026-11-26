@@ -1061,7 +1061,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             if (debt.direction == DebtDirection.LENT.name) {
                 addTransaction(
                     TxnType.INCOME,
-                    Category.LAIN_MASUK.name,
+                    Category.PIUTANG.name,
                     applied,
                     LocalDate.now(),
                     "Terima piutang dari $label",
@@ -1075,7 +1075,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 addTransaction(
                     TxnType.EXPENSE,
-                    Category.LAIN_KELUAR.name,
+                    Category.PAYLATER_UTANG.name,
                     applied,
                     LocalDate.now(),
                     note,

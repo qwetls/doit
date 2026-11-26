@@ -150,6 +150,7 @@ fun categoryIcon(category: DoitCategory): ImageVector {
         DoitCategory.GAJI -> Icons.Filled.AccountBalance
         DoitCategory.LEMBUR -> Icons.Filled.Schedule
         DoitCategory.SAMPINGAN -> Icons.Filled.Work
+        DoitCategory.PIUTANG -> Icons.Filled.AccountBalance
         DoitCategory.LAIN_MASUK -> Icons.Filled.Payments
         DoitCategory.BELANJA -> Icons.Filled.ShoppingBag
         DoitCategory.MAKAN -> Icons.Filled.Restaurant
@@ -160,6 +161,7 @@ fun categoryIcon(category: DoitCategory): ImageVector {
         DoitCategory.HIBURAN -> Icons.Filled.Movie
         DoitCategory.KESEHATAN -> Icons.Filled.MedicalServices
         DoitCategory.TAGIHAN -> Icons.Filled.Receipt
+        DoitCategory.PAYLATER_UTANG -> Icons.Filled.Payments
         DoitCategory.LAIN_KELUAR -> Icons.Filled.Category
         DoitCategory.TRANSFER -> Icons.Filled.SwapHoriz
     }

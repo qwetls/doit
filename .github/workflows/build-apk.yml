@@ -78,14 +78,15 @@ jobs:
           VERSION_NAME: ${{ steps.apk.outputs.version }}
         run: |
           cat > RELEASE_NOTES.md <<'EOF'
-          ## do.it v1.10.0 — Tabungan bisa dihapus + tanggal gajian
+          ## do.it v1.11.0 — Pos anggaran ADD/EDIT/HAPUS + alokasi manual & otomatis
 
-          - **Tabungan bisa edit + hapus (Rencana):** target tabungan utama (Laptop, berlabel UTAMA) kini bisa dihapus seperti target lainnya — tombol tempat sampah tampil di semua kartu target. Kalau target utama dihapus, target tertua yang tersisa otomatis naik jadi UTAMA supaya proyeksi tetap jalan. Hapus semua target satu per satu juga aman, aplikasi menampilkan state kosong tanpa crash.
-          - **Tanggal gajian (Akun → Pemasukan bulanan):** tidak ada lagi patokan gaji Rp1.000.000 — isi gajimu sendiri, dan isi tanggal berapa gajimu turun tiap bulan (1-31, kosongkan kalau belum diatur). Beranda menampilkan hitung mundur ("Gajian tanggal 25 · 6 hari lagi", atau "Gajian hari ini" pas tanggalnya). Teks patokan di Anggaran kini memakai angka gajimu yang sebenarnya.
-          - **Perbaikan bug anggaran:** "Sisa Anggaran Bulanan" sempat TURUN saat tambah pemasukan — penyebabnya tabungan bersih (pemasukan − pengeluaran) ikut dihitung sebagai anggaran terpakai. Sekarang sisa anggaran hanya menghitung anggaran belanja (Belanja + Darurat + pos kustom) dikurangi belanja di pos itu; tabungan bukan pengeluaran, jadi tambah pemasukan tidak lagi mengubah sisa anggaran. Baris Tabungan tetap menampilkan progres nabung seperti biasa.
-          - Tanggal gajian ikut tersimpan di cadangan JSON (ekspor/pulihkan), dan cadangan lama tanpa field ini tetap bisa dipulihkan.
+          - **Pos anggaran bisa ADD/EDIT/HAPUS semua:** termasuk 3 pos tetap (Belanja harian, Dana darurat, Tabungan) — hapus pakai dialog konfirmasi, dan pos yang dihapus bisa dipulihkan lagi lewat tombol "Pulihkan pos". Pos kustom tetap bisa ditambah lewat + Tambah Pos Anggaran Baru.
+          - **Alokasi manual:** tiap pos anggaran kini punya tombol "Alokasi" — isi jumlah (Rp) + catatan opsional, dan tercatat sebagai alokasi bulan itu. Uang di dompet tidak berpindah, ini hanya penanda.
+          - **Alokasi Kas Otomatis (ON/OFF):** saklar baru di Anggaran. Kalau ON, tiap pemasukan baru (Rp) otomatis dibagi ke pos anggaran — default 20% Belanja / 10% Darurat / 70% Tabungan, bisa diubah lewat "Kelola pembagian" (total harus 100%). Pos yang dihapus tidak ikut pembagian, bagiannya dibagi ulang ke pos yang masih ada. Saklar mati = tidak ada yang otomatis, dan alokasi manual tetap bisa kapan saja.
+          - **Tabungan jujur:** baris Tabungan kini menampilkan "terkumpul" = yang benar-benar dialokasi (manual + otomatis), bukan lagi sisa pemasukan bulan ini. Saklar mati + belum ada alokasi = 0.
+          - Alokasi ikut tersimpan di cadangan JSON (ekspor/pulihkan), dan cadangan lama tanpa data alokasi tetap bisa dipulihkan.
 
-          Tanpa perubahan database (tetap v6) — data lama aman.
+          Database naik v6 → v7 (tabel alokasi baru, migrasi resmi — data lama aman).
 
           Published signed release and debug APKs.
           EOF
@@ -95,7 +96,7 @@ jobs:
             "${{ steps.apk.outputs.release_path }}.sha256" \
             "${{ steps.apk.outputs.debug_path }}" \
             "${{ steps.apk.outputs.debug_path }}.sha256" \
-            --title "do.it $RELEASE_TAG (Kategori kustom, cadangan & pulihkan, reset semua data)" \
+            --title "do.it $RELEASE_TAG (Pos anggaran ADD/EDIT/HAPUS, alokasi manual & otomatis)" \
             --notes-file RELEASE_NOTES.md \
             --latest
 

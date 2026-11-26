@@ -12,7 +12,12 @@ data class SettingsSnapshot(
     val monthlyIncome: Long = 1_000_000L,
     val paydayDay: Int = 0,
     val displayName: String = "Adrien",
-    val defaultCurrency: String = "IDR"
+    val defaultCurrency: String = "IDR",
+    val autoAllocate: Boolean = false,
+    val allocPctBelanja: Int = 20,
+    val allocPctDarurat: Int = 10,
+    val allocPctTabungan: Int = 70,
+    val hiddenFixedPots: Set<String> = emptySet()
 )
 
 class SettingsStore(context: Context) {
@@ -59,6 +64,31 @@ class SettingsStore(context: Context) {
         MutableStateFlow(prefs.getString(KEY_DEFAULT_CURRENCY, "IDR") ?: "IDR")
     val defaultCurrency: StateFlow<String> = _defaultCurrency
 
+    private val _autoAllocate =
+        MutableStateFlow(prefs.getBoolean(KEY_AUTO_ALLOCATE, false))
+    val autoAllocate: StateFlow<Boolean> = _autoAllocate
+
+    private val _allocPctBelanja =
+        MutableStateFlow(prefs.getInt(KEY_ALLOC_PCT_BELANJA, 20))
+    val allocPctBelanja: StateFlow<Int> = _allocPctBelanja
+
+    private val _allocPctDarurat =
+        MutableStateFlow(prefs.getInt(KEY_ALLOC_PCT_DARURAT, 10))
+    val allocPctDarurat: StateFlow<Int> = _allocPctDarurat
+
+    private val _allocPctTabungan =
+        MutableStateFlow(prefs.getInt(KEY_ALLOC_PCT_TABUNGAN, 70))
+    val allocPctTabungan: StateFlow<Int> = _allocPctTabungan
+
+    private val _hiddenFixedPots =
+        MutableStateFlow(
+            prefs.getString(KEY_HIDDEN_FIXED_POTS, "")
+                ?.split(",")
+                ?.filter { it.isNotBlank() }
+                ?.toSet() ?: emptySet()
+        )
+    val hiddenFixedPots: StateFlow<Set<String>> = _hiddenFixedPots
+
     fun setBudgetBelanja(value: Long) = save(KEY_BUDGET_BELANJA, value, _budgetBelanja)
     fun setBudgetDarurat(value: Long) = save(KEY_BUDGET_DARURAT, value, _budgetDarurat)
     fun setBudgetTabungan(value: Long) = save(KEY_BUDGET_TABUNGAN, value, _budgetTabungan)
@@ -98,6 +128,34 @@ class SettingsStore(context: Context) {
         _defaultCurrency.value = normalized
     }
 
+    fun setAutoAllocate(value: Boolean) {
+        prefs.edit().putBoolean(KEY_AUTO_ALLOCATE, value).apply()
+        _autoAllocate.value = value
+    }
+
+    fun setAllocationPercents(belanja: Int, darurat: Int, tabungan: Int) {
+        if (belanja !in 0..100 || darurat !in 0..100 || tabungan !in 0..100) return
+        if (belanja + darurat + tabungan != 100) return
+        prefs.edit()
+            .putInt(KEY_ALLOC_PCT_BELANJA, belanja)
+            .putInt(KEY_ALLOC_PCT_DARURAT, darurat)
+            .putInt(KEY_ALLOC_PCT_TABUNGAN, tabungan)
+            .apply()
+        _allocPctBelanja.value = belanja
+        _allocPctDarurat.value = darurat
+        _allocPctTabungan.value = tabungan
+    }
+
+    fun setHiddenFixedPots(pots: Set<String>) {
+        prefs.edit().putString(KEY_HIDDEN_FIXED_POTS, pots.joinToString(",")).apply()
+        _hiddenFixedPots.value = pots
+    }
+
+    fun setFixedPotHidden(potKey: String, hidden: Boolean) {
+        val updated = if (hidden) _hiddenFixedPots.value + potKey else _hiddenFixedPots.value - potKey
+        setHiddenFixedPots(updated)
+    }
+
     fun snapshot(): SettingsSnapshot = SettingsSnapshot(
         budgetBelanja = _budgetBelanja.value,
         budgetDarurat = _budgetDarurat.value,
@@ -106,7 +164,12 @@ class SettingsStore(context: Context) {
         monthlyIncome = _monthlyIncome.value,
         paydayDay = _paydayDay.value,
         displayName = _displayName.value,
-        defaultCurrency = _defaultCurrency.value
+        defaultCurrency = _defaultCurrency.value,
+        autoAllocate = _autoAllocate.value,
+        allocPctBelanja = _allocPctBelanja.value,
+        allocPctDarurat = _allocPctDarurat.value,
+        allocPctTabungan = _allocPctTabungan.value,
+        hiddenFixedPots = _hiddenFixedPots.value
     )
 
     fun restore(snapshot: SettingsSnapshot) {
@@ -118,6 +181,9 @@ class SettingsStore(context: Context) {
         setPaydayDay(snapshot.paydayDay)
         setDisplayName(snapshot.displayName)
         setDefaultCurrency(snapshot.defaultCurrency)
+        setAutoAllocate(snapshot.autoAllocate)
+        setAllocationPercents(snapshot.allocPctBelanja, snapshot.allocPctDarurat, snapshot.allocPctTabungan)
+        setHiddenFixedPots(snapshot.hiddenFixedPots)
     }
 
     fun resetAll() {
@@ -133,6 +199,11 @@ class SettingsStore(context: Context) {
         _lastWalletId.value = 0L
         _displayName.value = "Adrien"
         _defaultCurrency.value = "IDR"
+        _autoAllocate.value = false
+        _allocPctBelanja.value = 20
+        _allocPctDarurat.value = 10
+        _allocPctTabungan.value = 70
+        _hiddenFixedPots.value = emptySet()
     }
 
     private fun save(key: String, value: Long, flow: MutableStateFlow<Long>) {
@@ -152,5 +223,10 @@ class SettingsStore(context: Context) {
         const val KEY_LAST_WALLET_ID = "last_wallet_id"
         const val KEY_DISPLAY_NAME = "display_name"
         const val KEY_DEFAULT_CURRENCY = "default_currency"
+        const val KEY_AUTO_ALLOCATE = "auto_allocate"
+        const val KEY_ALLOC_PCT_BELANJA = "alloc_pct_belanja"
+        const val KEY_ALLOC_PCT_DARURAT = "alloc_pct_darurat"
+        const val KEY_ALLOC_PCT_TABUNGAN = "alloc_pct_tabungan"
+        const val KEY_HIDDEN_FIXED_POTS = "hidden_fixed_pots"
     }
 }

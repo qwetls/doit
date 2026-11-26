@@ -16,9 +16,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Debt::class,
         Bill::class,
         BudgetPosition::class,
-        CustomCategory::class
+        CustomCategory::class,
+        BudgetAllocation::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -30,6 +31,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun billDao(): BillDao
     abstract fun budgetPositionDao(): BudgetPositionDao
     abstract fun customCategoryDao(): CustomCategoryDao
+    abstract fun budgetAllocationDao(): BudgetAllocationDao
 
     companion object {
         private const val CREATE_WALLETS =
@@ -148,6 +150,21 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS budget_allocations (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "potKey TEXT NOT NULL, " +
+                        "amount INTEGER NOT NULL, " +
+                        "source TEXT NOT NULL, " +
+                        "monthKey TEXT NOT NULL, " +
+                        "dateEpochDay INTEGER NOT NULL, " +
+                        "note TEXT NOT NULL)"
+                )
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -157,7 +174,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "doit.db"
-                ).addMigrations(MIGRATION_1_3, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6).build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_1_3, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7).build().also { INSTANCE = it }
             }
         }
     }

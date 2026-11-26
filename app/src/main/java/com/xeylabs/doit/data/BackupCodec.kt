@@ -15,7 +15,8 @@ data class BackupData(
     val bills: List<Bill>,
     val budgetPositions: List<BudgetPosition>,
     val customCategories: List<CustomCategory>,
-    val settings: SettingsSnapshot?
+    val settings: SettingsSnapshot?,
+    val allocations: List<BudgetAllocation> = emptyList()
 )
 
 object BackupCodec {
@@ -32,6 +33,7 @@ object BackupCodec {
         root.put("bills", JSONArray(data.bills.map { billToJson(it) }))
         root.put("budgetPositions", JSONArray(data.budgetPositions.map { positionToJson(it) }))
         root.put("customCategories", JSONArray(data.customCategories.map { customToJson(it) }))
+        root.put("allocations", JSONArray(data.allocations.map { allocationToJson(it) }))
         data.settings?.let { root.put("settings", settingsToJson(it)) }
         return root.toString(2)
     }
@@ -52,8 +54,9 @@ object BackupCodec {
         val bills = readArray(root, "bills") { jsonToBill(it) }
         val positions = readArray(root, "budgetPositions") { jsonToPosition(it) }
         val customs = readArray(root, "customCategories") { jsonToCustom(it) }
+        val allocations = readArray(root, "allocations") { jsonToAllocation(it) }
         val settings = root.optJSONObject("settings")?.let { jsonToSettings(it) }
-        return BackupData(transactions, wallets, goals, recurrings, debts, bills, positions, customs, settings)
+        return BackupData(transactions, wallets, goals, recurrings, debts, bills, positions, customs, settings, allocations)
     }
 
     private fun <T> readArray(root: JSONObject, key: String, parse: (JSONObject) -> T): List<T> {
@@ -140,6 +143,16 @@ object BackupCodec {
         put("colorHex", custom.colorHex)
     }
 
+    private fun allocationToJson(allocation: BudgetAllocation): JSONObject = JSONObject().apply {
+        put("id", allocation.id)
+        put("potKey", allocation.potKey)
+        put("amount", allocation.amount)
+        put("source", allocation.source)
+        put("monthKey", allocation.monthKey)
+        put("dateEpochDay", allocation.dateEpochDay)
+        put("note", allocation.note)
+    }
+
     private fun settingsToJson(settings: SettingsSnapshot): JSONObject = JSONObject().apply {
         put("budgetBelanja", settings.budgetBelanja)
         put("budgetDarurat", settings.budgetDarurat)
@@ -149,6 +162,11 @@ object BackupCodec {
         put("paydayDay", settings.paydayDay)
         put("displayName", settings.displayName)
         put("defaultCurrency", settings.defaultCurrency)
+        put("autoAllocate", settings.autoAllocate)
+        put("allocPctBelanja", settings.allocPctBelanja)
+        put("allocPctDarurat", settings.allocPctDarurat)
+        put("allocPctTabungan", settings.allocPctTabungan)
+        put("hiddenFixedPots", JSONArray(settings.hiddenFixedPots.toList()))
     }
 
     private fun jsonToTx(obj: JSONObject): Transaction {
@@ -252,6 +270,16 @@ object BackupCodec {
         )
     }
 
+    private fun jsonToAllocation(obj: JSONObject): BudgetAllocation = BudgetAllocation(
+        id = obj.getLong("id"),
+        potKey = obj.getString("potKey"),
+        amount = obj.getLong("amount"),
+        source = obj.optString("source", "MANUAL"),
+        monthKey = obj.getString("monthKey"),
+        dateEpochDay = obj.getLong("dateEpochDay"),
+        note = obj.optString("note", "")
+    )
+
     private fun jsonToSettings(obj: JSONObject): SettingsSnapshot = SettingsSnapshot(
         budgetBelanja = obj.optLong("budgetBelanja", 200_000L),
         budgetDarurat = obj.optLong("budgetDarurat", 100_000L),
@@ -260,6 +288,13 @@ object BackupCodec {
         monthlyIncome = obj.optLong("monthlyIncome", 1_000_000L),
         paydayDay = obj.optInt("paydayDay", 0),
         displayName = obj.optString("displayName", "Adrien"),
-        defaultCurrency = obj.optString("defaultCurrency", "IDR")
+        defaultCurrency = obj.optString("defaultCurrency", "IDR"),
+        autoAllocate = obj.optBoolean("autoAllocate", false),
+        allocPctBelanja = obj.optInt("allocPctBelanja", 20),
+        allocPctDarurat = obj.optInt("allocPctDarurat", 10),
+        allocPctTabungan = obj.optInt("allocPctTabungan", 70),
+        hiddenFixedPots = obj.optJSONArray("hiddenFixedPots")?.let { arr ->
+            (0 until arr.length()).map { arr.getString(it) }.toSet()
+        } ?: emptySet()
     )
 }

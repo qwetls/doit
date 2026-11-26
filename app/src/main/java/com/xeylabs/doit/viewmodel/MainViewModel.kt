@@ -14,6 +14,7 @@ import com.xeylabs.doit.data.AppDatabase
 import com.xeylabs.doit.data.BackupCodec
 import com.xeylabs.doit.data.BackupData
 import com.xeylabs.doit.data.Bill
+import com.xeylabs.doit.data.BudgetAllocation
 import com.xeylabs.doit.data.BudgetPosition
 import com.xeylabs.doit.data.Category
 import com.xeylabs.doit.data.CategoryRef
@@ -22,6 +23,9 @@ import com.xeylabs.doit.data.CustomCategory
 import com.xeylabs.doit.data.Debt
 import com.xeylabs.doit.data.DebtDirection
 import com.xeylabs.doit.data.DebtKind
+import com.xeylabs.doit.data.POT_BELANJA
+import com.xeylabs.doit.data.POT_DARURAT
+import com.xeylabs.doit.data.POT_TABUNGAN
 import com.xeylabs.doit.data.PendingRestore
 import com.xeylabs.doit.data.Receipts
 import com.xeylabs.doit.data.RecurringFrequency
@@ -33,6 +37,7 @@ import com.xeylabs.doit.data.TxnType
 import com.xeylabs.doit.data.Wallet
 import com.xeylabs.doit.data.WalletType
 import com.xeylabs.doit.data.customCategoryKey
+import com.xeylabs.doit.data.customPotKey
 import com.xeylabs.doit.data.fallbackCategoryKey
 import com.xeylabs.doit.data.resolveCategoryRef
 import com.xeylabs.doit.data.walletCurrency
@@ -177,6 +182,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val billDao = db.billDao()
     private val budgetPositionDao = db.budgetPositionDao()
     private val customCategoryDao = db.customCategoryDao()
+    private val allocationDao = db.budgetAllocationDao()
     private val settings = SettingsStore(app)
 
     val selectedMonth = MutableStateFlow(YearMonth.now())
@@ -222,6 +228,28 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val budgetPositions: StateFlow<List<BudgetPosition>> = budgetPositionDao.getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val allocations: StateFlow<List<BudgetAllocation>> = allocationDao.getAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val monthAllocations: StateFlow<Map<String, Long>> = combine(
+        allocations, selectedMonth
+    ) { allocationList, month ->
+        allocationList.filter { it.monthKey == month.toString() }
+            .groupBy { it.potKey }
+            .mapValues { (_, list) -> list.sumOf { it.amount } }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    val autoAllocate: StateFlow<Boolean> = settings.autoAllocate
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val allocationPercents: StateFlow<Triple<Int, Int, Int>> = combine(
+        settings.allocPctBelanja, settings.allocPctDarurat, settings.allocPctTabungan
+    ) { belanja, darurat, tabungan -> Triple(belanja, darurat, tabungan) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), Triple(20, 10, 70))
+
+    val hiddenFixedPots: StateFlow<Set<String>> = settings.hiddenFixedPots
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
     val customCategories: StateFlow<List<CustomCategory>> = customCategoryDao.getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -822,11 +850,74 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     receiptPath = receiptPath
                 )
             )
+            if (type == TxnType.INCOME && settings.autoAllocate.value) {
+                autoAllocateIncome(amount, date, resolved)
+            }
             if (resolved != null) settings.setLastWalletId(resolved)
             settings.setLastCategory(categoryKey)
             DoitWidgetProvider.refresh(getApplication())
         }
     }
+
+    private suspend fun autoAllocateIncome(amount: Long, date: LocalDate, walletId: Long?) {
+        if (amount <= 0) return
+        val walletList = walletDao.getAllOnce()
+        val currency = walletList.firstOrNull { it.id == walletId }?.currency
+            ?: walletList.firstOrNull()?.currency ?: "IDR"
+        if (currency != "IDR") return
+        val hidden = settings.hiddenFixedPots.value
+        val pots = listOf(
+            POT_BELANJA to settings.allocPctBelanja.value,
+            POT_DARURAT to settings.allocPctDarurat.value,
+            POT_TABUNGAN to settings.allocPctTabungan.value
+        ).filter { (key, _) -> key !in hidden }
+        val totalPct = pots.sumOf { it.second }
+        if (pots.isEmpty() || totalPct <= 0) return
+        val shares = pots.map { (_, pct) -> amount * pct / totalPct }
+        val remainder = amount - shares.sum()
+        val rows = pots.mapIndexed { index, (key, _) ->
+            val share = shares[index] + if (index == 0) remainder else 0
+            BudgetAllocation(
+                potKey = key,
+                amount = share,
+                source = "AUTO",
+                monthKey = YearMonth.from(date).toString(),
+                dateEpochDay = date.toEpochDay(),
+                note = "Otomatis"
+            )
+        }.filter { it.amount > 0 }
+        if (rows.isNotEmpty()) allocationDao.insertAll(rows)
+    }
+
+    fun addManualAllocation(potKey: String, amount: Long, note: String) {
+        if (amount <= 0) return
+        viewModelScope.launch {
+            allocationDao.insert(
+                BudgetAllocation(
+                    potKey = potKey,
+                    amount = amount,
+                    source = "MANUAL",
+                    monthKey = selectedMonth.value.toString(),
+                    dateEpochDay = LocalDate.now().toEpochDay(),
+                    note = note.trim()
+                )
+            )
+        }
+    }
+
+    fun setAutoAllocate(value: Boolean) = settings.setAutoAllocate(value)
+
+    fun setAllocationPercents(belanja: Int, darurat: Int, tabungan: Int) =
+        settings.setAllocationPercents(belanja, darurat, tabungan)
+
+    fun deleteFixedPot(potKey: String) {
+        viewModelScope.launch {
+            settings.setFixedPotHidden(potKey, true)
+            allocationDao.deleteByPotKey(potKey)
+        }
+    }
+
+    fun restoreFixedPot(potKey: String) = settings.setFixedPotHidden(potKey, false)
 
     /** Transfer antar dompet: BUKAN pemasukan/pengeluaran, satu baris tipe TRANSFER.
      * Beda mata uang: receivedAmount = jumlah yang diterima dompet tujuan (diisi
@@ -1012,7 +1103,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun deleteBudgetPosition(position: BudgetPosition) {
-        viewModelScope.launch { budgetPositionDao.delete(position) }
+        viewModelScope.launch {
+            allocationDao.deleteByPotKey(customPotKey(position.id))
+            budgetPositionDao.delete(position)
+        }
     }
 
     fun addCustomCategory(
@@ -1376,7 +1470,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     bills = billDao.getAllOnce(),
                     budgetPositions = budgetPositionDao.getAllOnce(),
                     customCategories = customCategoryDao.getAllOnce(),
-                    settings = settings.snapshot()
+                    settings = settings.snapshot(),
+                    allocations = allocationDao.getAllOnce()
                 )
                 val app = getApplication<Application>()
                 val dir = File(app.cacheDir, "exports").apply { mkdirs() }
@@ -1413,7 +1508,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     summary = "Cadangan berisi ${data.transactions.size} transaksi, ${data.wallets.size} dompet, " +
                         "${data.goals.size} target tabungan, ${data.recurrings.size} transaksi berulang, " +
                         "${data.debts.size} utang/piutang, ${data.bills.size} tagihan, " +
-                        "${data.budgetPositions.size} pos anggaran, dan ${data.customCategories.size} kategori kustom.",
+                        "${data.budgetPositions.size} pos anggaran, ${data.customCategories.size} kategori kustom, " +
+                        "dan ${data.allocations.size} alokasi.",
                     data = data
                 )
             } catch (e: Exception) {
@@ -1437,6 +1533,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     billDao.deleteAll()
                     budgetPositionDao.deleteAll()
                     customCategoryDao.deleteAll()
+                    allocationDao.deleteAll()
                     data.transactions.forEach { dao.insert(it) }
                     data.wallets.forEach { walletDao.insert(it) }
                     data.goals.forEach { goalDao.insert(it) }
@@ -1445,6 +1542,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     data.bills.forEach { billDao.insert(it) }
                     data.budgetPositions.forEach { budgetPositionDao.insert(it) }
                     data.customCategories.forEach { customCategoryDao.insert(it) }
+                    data.allocations.forEach { allocationDao.insert(it) }
                 }
                 data.settings?.let { settings.restore(it) }
                 settings.setOnboardingDone(true)
@@ -1485,6 +1583,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 billDao.deleteAll()
                 budgetPositionDao.deleteAll()
                 customCategoryDao.deleteAll()
+                allocationDao.deleteAll()
             }
             Receipts.deleteAllReceipts(getApplication())
             settings.resetAll()

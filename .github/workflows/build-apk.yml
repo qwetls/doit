@@ -78,15 +78,13 @@ jobs:
           VERSION_NAME: ${{ steps.apk.outputs.version }}
         run: |
           cat > RELEASE_NOTES.md <<'EOF'
-          ## do.it v1.11.0 — Pos anggaran ADD/EDIT/HAPUS + alokasi manual & otomatis
+          ## do.it v1.11.1 — Bayar paylater/utang kini motong dompet
 
-          - **Pos anggaran bisa ADD/EDIT/HAPUS semua:** termasuk 3 pos tetap (Belanja harian, Dana darurat, Tabungan) — hapus pakai dialog konfirmasi, dan pos yang dihapus bisa dipulihkan lagi lewat tombol "Pulihkan pos". Pos kustom tetap bisa ditambah lewat + Tambah Pos Anggaran Baru.
-          - **Alokasi manual:** tiap pos anggaran kini punya tombol "Alokasi" — isi jumlah (Rp) + catatan opsional, dan tercatat sebagai alokasi bulan itu. Uang di dompet tidak berpindah, ini hanya penanda.
-          - **Alokasi Kas Otomatis (ON/OFF):** saklar baru di Anggaran. Kalau ON, tiap pemasukan baru (Rp) otomatis dibagi ke pos anggaran — default 20% Belanja / 10% Darurat / 70% Tabungan, bisa diubah lewat "Kelola pembagian" (total harus 100%). Pos yang dihapus tidak ikut pembagian, bagiannya dibagi ulang ke pos yang masih ada. Saklar mati = tidak ada yang otomatis, dan alokasi manual tetap bisa kapan saja.
-          - **Tabungan jujur:** baris Tabungan kini menampilkan "terkumpul" = yang benar-benar dialokasi (manual + otomatis), bukan lagi sisa pemasukan bulan ini. Saklar mati + belum ada alokasi = 0.
-          - Alokasi ikut tersimpan di cadangan JSON (ekspor/pulihkan), dan cadangan lama tanpa data alokasi tetap bisa dipulihkan.
+          - **Bayar paylater/utang kini tercatat penuh:** dialog Bayar di Paylater & Utang Piutang kini menanyakan bayar dari dompet mana (Rp saja). Saldo dompet berkurang, pembayaran tercatat sebagai pengeluaran di riwayat (mis. "Bayar paylater DANA") dan kehitung di pengeluaran bulan itu. Sebelumnya tombol Bayar hanya mengurangi sisa utang tanpa menyentuh dompet.
+          - **Piutang dibayar balik juga tercatat:** uang yang diterima masuk ke dompet yang dipilih sebagai pemasukan ("Terima piutang dari ...") dan dihitung sebagai pemasukan biasa, termasuk alokasi otomatis kalau saklarnya ON.
+          - Pembayaran tetap dibatasi sampai sisa utang (tidak bisa lebih), dan catatan kaki lama yang bilang pembayaran utang belum tercatat sebagai transaksi dompet sudah dihapus.
 
-          Database naik v6 → v7 (tabel alokasi baru, migrasi resmi — data lama aman).
+          Tidak ada perubahan database.
 
           Published signed release and debug APKs.
           EOF
@@ -96,7 +94,7 @@ jobs:
             "${{ steps.apk.outputs.release_path }}.sha256" \
             "${{ steps.apk.outputs.debug_path }}" \
             "${{ steps.apk.outputs.debug_path }}.sha256" \
-            --title "do.it $RELEASE_TAG (Pos anggaran ADD/EDIT/HAPUS, alokasi manual & otomatis)" \
+            --title "do.it $RELEASE_TAG (Bayar paylater/utang kini motong dompet)" \
             --notes-file RELEASE_NOTES.md \
             --latest
 

@@ -247,6 +247,7 @@ private fun RecurringSection(viewModel: MainViewModel) {
 @Composable
 private fun DebtsSection(viewModel: MainViewModel) {
     val debts by viewModel.debts.collectAsState()
+    val wallets by viewModel.wallets.collectAsState()
 
     var showAddDebt by remember { mutableStateOf(false) }
     var debtToEdit by remember { mutableStateOf<Debt?>(null) }
@@ -318,11 +319,6 @@ private fun DebtsSection(viewModel: MainViewModel) {
                 }
             }
         }
-        Text(
-            "Pembayaran utang/piutang hanya mengurangi sisa — belum tercatat sebagai transaksi dompet.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 
     if (showAddDebt) {
@@ -358,9 +354,10 @@ private fun DebtsSection(viewModel: MainViewModel) {
     if (debtPayTarget != null) {
         DebtPayDialog(
             debt = debtPayTarget,
+            wallets = wallets,
             onDismiss = { debtToPay = null },
-            onSave = { amount ->
-                viewModel.recordDebtPayment(debtPayTarget, amount)
+            onSave = { amount, walletId ->
+                viewModel.recordDebtPayment(debtPayTarget, amount, walletId)
                 debtToPay = null
             }
         )

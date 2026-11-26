@@ -2,11 +2,10 @@
 
 Aplikasi pencatat uang yang ringan — money management untuk gaji Rp1.000.000/bulan.
 
-**v1.11.0 — Pos anggaran ADD/EDIT/HAPUS + alokasi manual & otomatis:**
-- Semua pos anggaran bisa ADD/EDIT/HAPUS, termasuk 3 pos tetap (Belanja/Darurat/Tabungan); pos tetap yang dihapus bisa dipulihkan lagi.
-- Alokasi manual per pos (tombol "Alokasi", jumlah + catatan opsional) dan Alokasi Kas Otomatis ON/OFF — pemasukan baru (Rp) otomatis dibagi 20% Belanja / 10% Darurat / 70% Tabungan (bisa diubah, total harus 100%); uang dompet tidak berpindah, hanya penanda.
-- Tabungan "terkumpul" kini jujur: hanya yang benar-benar dialokasi (manual + otomatis), bukan sisa pemasukan bulan ini.
-- Alokasi ikut di cadangan JSON; database v6 → v7 (tabel alokasi baru, migrasi resmi).
+**v1.11.1 — Bayar paylater/utang kini motong dompet:**
+- Dialog Bayar di Paylater & Utang Piutang kini menanyakan bayar dari dompet mana (Rp saja); saldo dompet berkurang dan pembayaran tercatat sebagai pengeluaran ("Bayar paylater DANA") di riwayat dan pengeluaran bulan itu.
+- Piutang yang dibayar balik masuk ke dompet sebagai pemasukan ("Terima piutang dari ..."), dihitung pemasukan biasa termasuk alokasi otomatis kalau ON.
+- Pembayaran tetap dibatasi sampai sisa utang; tidak ada perubahan database.
 
 **v1.7.0 — Samakan persis fitur + UI contoh FluxCash:**
 - Lampiran Struk foto di Catat Transaksi (tombol "Unggah Foto Struk" + thumbnail, tersimpan internal, tampil juga saat ubah transaksi, ikut terhapus saat transaksi dihapus).

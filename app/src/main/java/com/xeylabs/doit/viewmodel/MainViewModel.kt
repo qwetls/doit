@@ -23,6 +23,7 @@ import com.xeylabs.doit.data.CustomCategory
 import com.xeylabs.doit.data.Debt
 import com.xeylabs.doit.data.DebtDirection
 import com.xeylabs.doit.data.DebtKind
+import com.xeylabs.doit.data.effectiveKind
 import com.xeylabs.doit.data.POT_BELANJA
 import com.xeylabs.doit.data.POT_DARURAT
 import com.xeylabs.doit.data.POT_TABUNGAN
@@ -1047,13 +1048,40 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun recordDebtPayment(debt: Debt, payment: Long) {
+    fun recordDebtPayment(debt: Debt, payment: Long, walletId: Long? = null) {
         if (payment <= 0) return
         viewModelScope.launch {
             val newPaid = (debt.paid + payment).coerceAtMost(debt.amount)
+            val applied = newPaid - debt.paid
+            if (applied <= 0) return@launch
             debtDao.update(
                 debt.copy(paid = newPaid, isSettled = newPaid >= debt.amount)
             )
+            val label = debt.provider?.ifBlank { null } ?: debt.personName
+            if (debt.direction == DebtDirection.LENT.name) {
+                addTransaction(
+                    TxnType.INCOME,
+                    Category.LAIN_MASUK.name,
+                    applied,
+                    LocalDate.now(),
+                    "Terima piutang dari $label",
+                    walletId
+                )
+            } else {
+                val note = if (debt.effectiveKind() == DebtKind.PAYLATER) {
+                    "Bayar paylater $label"
+                } else {
+                    "Bayar utang $label"
+                }
+                addTransaction(
+                    TxnType.EXPENSE,
+                    Category.LAIN_KELUAR.name,
+                    applied,
+                    LocalDate.now(),
+                    note,
+                    walletId
+                )
+            }
         }
     }
 

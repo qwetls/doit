@@ -572,15 +572,22 @@ fun DebtEditDialog(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebtPayDialog(
     debt: Debt,
+    wallets: List<Wallet>,
     onDismiss: () -> Unit,
-    onSave: (Long) -> Unit
+    onSave: (Long, Long?) -> Unit
 ) {
     val remaining = (debt.amount - debt.paid).coerceAtLeast(0)
+    val isReceiving = DebtDirection.fromName(debt.direction) == DebtDirection.LENT
+    val rpWallets = wallets.filter { walletCurrency(it) == Currency.IDR }
     var amountText by remember { mutableStateOf("") }
+    var walletId by remember { mutableStateOf(rpWallets.firstOrNull()?.id ?: 0L) }
+    var walletExpanded by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
+    val walletName = rpWallets.firstOrNull { it.id == walletId }?.name ?: "-"
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -594,11 +601,35 @@ fun DebtPayDialog(
                 OutlinedTextField(
                     value = amountText,
                     onValueChange = { amountText = it.filter { ch -> ch.isDigit() } },
-                    label = { Text("Jumlah dibayar (Rp)") },
+                    label = { Text(if (isReceiving) "Jumlah diterima (Rp)" else "Jumlah dibayar (Rp)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+                ExposedDropdownMenuBox(
+                    expanded = walletExpanded,
+                    onExpandedChange = { walletExpanded = !walletExpanded }
+                ) {
+                    OutlinedTextField(
+                        value = walletName,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text(if (isReceiving) "Terima ke dompet" else "Bayar dari dompet") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = walletExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = walletExpanded,
+                        onDismissRequest = { walletExpanded = false }
+                    ) {
+                        rpWallets.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option.name) },
+                                onClick = { walletId = option.id; walletExpanded = false }
+                            )
+                        }
+                    }
+                }
                 if (error.isNotBlank()) {
                     Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
                 }
@@ -607,11 +638,11 @@ fun DebtPayDialog(
         confirmButton = {
             Button(onClick = {
                 val amount = amountText.toLongOrNull()
-                if (amount == null || amount <= 0) {
-                    error = "Masukkan jumlah lebih dari 0"
-                    return@Button
+                when {
+                    amount == null || amount <= 0 -> error = "Masukkan jumlah lebih dari 0"
+                    walletId == 0L -> error = "Pilih dompet"
+                    else -> onSave(amount, walletId)
                 }
-                onSave(amount)
             }) { Text("Simpan") }
         },
         dismissButton = {

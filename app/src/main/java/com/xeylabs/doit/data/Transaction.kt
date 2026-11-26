@@ -14,6 +14,11 @@ enum class Category(val type: TxnType, val label: String) {
     MAKAN(TxnType.EXPENSE, "Makan"),
     TRANSPORT(TxnType.EXPENSE, "Transport"),
     DARURAT(TxnType.EXPENSE, "Darurat"),
+    ROKOK(TxnType.EXPENSE, "Rokok"),
+    MINUMAN(TxnType.EXPENSE, "Minuman"),
+    HIBURAN(TxnType.EXPENSE, "Hiburan"),
+    KESEHATAN(TxnType.EXPENSE, "Kesehatan"),
+    TAGIHAN(TxnType.EXPENSE, "Tagihan & Utilitas"),
     LAIN_KELUAR(TxnType.EXPENSE, "Lain-lain"),
     TRANSFER(TxnType.TRANSFER, "Transfer");
 

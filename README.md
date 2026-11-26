@@ -2,10 +2,9 @@
 
 Aplikasi pencatat uang yang ringan — money management untuk gaji Rp1.000.000/bulan.
 
-**v1.11.1 — Bayar paylater/utang kini motong dompet:**
-- Dialog Bayar di Paylater & Utang Piutang kini menanyakan bayar dari dompet mana (Rp saja); saldo dompet berkurang dan pembayaran tercatat sebagai pengeluaran ("Bayar paylater DANA") di riwayat dan pengeluaran bulan itu.
-- Piutang yang dibayar balik masuk ke dompet sebagai pemasukan ("Terima piutang dari ..."), dihitung pemasukan biasa termasuk alokasi otomatis kalau ON.
-- Pembayaran tetap dibatasi sampai sisa utang; tidak ada perubahan database.
+**v1.11.2 — Kategori baru: Rokok, Minuman, Hiburan, Kesehatan, Tagihan & Utilitas:**
+- 5 kategori pengeluaran baru dengan ikon dan warna sendiri; muncul di grid kategori, filter riwayat, dan laporan.
+- Kategori lama tidak berubah; tidak ada perubahan database.
 
 **v1.7.0 — Samakan persis fitur + UI contoh FluxCash:**
 - Lampiran Struk foto di Catat Transaksi (tombol "Unggah Foto Struk" + thumbnail, tersimpan internal, tampil juga saat ubah transaksi, ikut terhapus saat transaksi dihapus).

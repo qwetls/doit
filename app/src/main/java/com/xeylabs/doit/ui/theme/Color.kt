@@ -33,6 +33,11 @@ val categoryColors: Map<String, Color> = mapOf(
     "MAKAN" to Color(0xFF34D399),
     "TRANSPORT" to EmeraldLight,
     "DARURAT" to WarningAmber,
+    "ROKOK" to Color(0xFFFB923C),
+    "MINUMAN" to Color(0xFF38BDF8),
+    "HIBURAN" to Color(0xFFA78BFA),
+    "KESEHATAN" to Color(0xFFF43F5E),
+    "TAGIHAN" to Color(0xFFF472B6),
     "LAIN_KELUAR" to CategoryGray
 )
 

@@ -78,11 +78,10 @@ jobs:
           VERSION_NAME: ${{ steps.apk.outputs.version }}
         run: |
           cat > RELEASE_NOTES.md <<'EOF'
-          ## do.it v1.11.1 — Bayar paylater/utang kini motong dompet
+          ## do.it v1.11.2 — Kategori baru: Rokok, Minuman, Hiburan, Kesehatan, Tagihan & Utilitas
 
-          - **Bayar paylater/utang kini tercatat penuh:** dialog Bayar di Paylater & Utang Piutang kini menanyakan bayar dari dompet mana (Rp saja). Saldo dompet berkurang, pembayaran tercatat sebagai pengeluaran di riwayat (mis. "Bayar paylater DANA") dan kehitung di pengeluaran bulan itu. Sebelumnya tombol Bayar hanya mengurangi sisa utang tanpa menyentuh dompet.
-          - **Piutang dibayar balik juga tercatat:** uang yang diterima masuk ke dompet yang dipilih sebagai pemasukan ("Terima piutang dari ...") dan dihitung sebagai pemasukan biasa, termasuk alokasi otomatis kalau saklarnya ON.
-          - Pembayaran tetap dibatasi sampai sisa utang (tidak bisa lebih), dan catatan kaki lama yang bilang pembayaran utang belum tercatat sebagai transaksi dompet sudah dihapus.
+          - **5 kategori pengeluaran baru:** Rokok, Minuman, Hiburan, Kesehatan, dan Tagihan & Utilitas — kini muncul di grid kategori saat catat pengeluaran, di filter riwayat, dan di laporan, masing-masing dengan ikon dan warna sendiri. Sebelumnya pengeluaran seperti ini hanya bisa masuk "Lain-lain" atau kategori buatan sendiri.
+          - Kategori lama tidak berubah; pengeluaran di kategori baru tetap kehitung di total pengeluaran dan laporan seperti biasa.
 
           Tidak ada perubahan database.
 
@@ -94,7 +93,7 @@ jobs:
             "${{ steps.apk.outputs.release_path }}.sha256" \
             "${{ steps.apk.outputs.debug_path }}" \
             "${{ steps.apk.outputs.debug_path }}.sha256" \
-            --title "do.it $RELEASE_TAG (Bayar paylater/utang kini motong dompet)" \
+            --title "do.it $RELEASE_TAG (Kategori baru: Rokok, Minuman, Hiburan, Kesehatan, Tagihan & Utilitas)" \
             --notes-file RELEASE_NOTES.md \
             --latest
 

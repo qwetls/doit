@@ -150,6 +150,11 @@ fun categoryIcon(category: DoitCategory): ImageVector {
         DoitCategory.MAKAN -> Icons.Filled.Restaurant
         DoitCategory.TRANSPORT -> Icons.Filled.DirectionsCar
         DoitCategory.DARURAT -> Icons.Filled.HealthAndSafety
+        DoitCategory.ROKOK -> Icons.Filled.SmokingRooms
+        DoitCategory.MINUMAN -> Icons.Filled.LocalDrink
+        DoitCategory.HIBURAN -> Icons.Filled.Movie
+        DoitCategory.KESEHATAN -> Icons.Filled.MedicalServices
+        DoitCategory.TAGIHAN -> Icons.Filled.Receipt
         DoitCategory.LAIN_KELUAR -> Icons.Filled.Category
         DoitCategory.TRANSFER -> Icons.Filled.SwapHoriz
     }

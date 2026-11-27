@@ -851,7 +851,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     receiptPath = receiptPath
                 )
             )
-            if (type == TxnType.INCOME && settings.autoAllocate.value) {
+            if (type == TxnType.INCOME && categoryKey != Category.PIUTANG.name && settings.autoAllocate.value) {
                 autoAllocateIncome(amount, date, resolved)
             }
             if (resolved != null) settings.setLastWalletId(resolved)

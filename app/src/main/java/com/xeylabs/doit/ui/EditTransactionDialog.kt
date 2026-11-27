@@ -38,6 +38,7 @@ import com.xeylabs.doit.data.Transaction
 import com.xeylabs.doit.data.TxnType
 import com.xeylabs.doit.data.categoryRefsForType
 import com.xeylabs.doit.data.resolveCategoryRef
+import com.xeylabs.doit.data.walletCurrency
 import com.xeylabs.doit.viewmodel.MainViewModel
 import java.time.LocalDate
 
@@ -49,8 +50,16 @@ fun EditTransactionDialog(
     onDismiss: () -> Unit
 ) {
     val customCategories by viewModel.customCategories.collectAsState()
+    val wallets by viewModel.wallets.collectAsState()
     val type = TxnType.valueOf(tx.type)
+    val isTransfer = type == TxnType.TRANSFER
     val txCurrency = viewModel.walletCurrency(tx.walletId)
+    val txWallet = wallets.firstOrNull { it.id == tx.walletId } ?: wallets.firstOrNull()
+    var selectedWalletId by remember { mutableStateOf(tx.walletId) }
+    val effectiveWallet = wallets.firstOrNull { it.id == selectedWalletId } ?: txWallet
+    val walletOptions = wallets.filter { walletCurrency(it) == walletCurrency(txWallet) }
+    var walletExpanded by remember { mutableStateOf(false) }
+    val amountCurrency = effectiveWallet?.let { walletCurrency(it) } ?: txCurrency
     var amountText by remember { mutableStateOf(tx.amount.toString()) }
     var category by remember { mutableStateOf(resolveCategoryRef(tx.category, customCategories)) }
     var date by remember { mutableStateOf(LocalDate.ofEpochDay(tx.dateEpochDay)) }
@@ -68,11 +77,41 @@ fun EditTransactionDialog(
                 OutlinedTextField(
                     value = amountText,
                     onValueChange = { amountText = it.filter { ch -> ch.isDigit() } },
-                    label = { Text("Jumlah (" + txCurrency.symbol + ")") },
+                    label = { Text("Jumlah (" + amountCurrency.symbol + ")") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                if (!isTransfer) {
+                    ExposedDropdownMenuBox(
+                        expanded = walletExpanded,
+                        onExpandedChange = { walletExpanded = !walletExpanded }
+                    ) {
+                        OutlinedTextField(
+                            value = effectiveWallet?.name ?: "",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Dompet") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = walletExpanded) },
+                            modifier = Modifier.fillMaxWidth().menuAnchor()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = walletExpanded,
+                            onDismissRequest = { walletExpanded = false }
+                        ) {
+                            walletOptions.forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text(option.name + " · " + walletCurrency(option).symbol) },
+                                    onClick = {
+                                        selectedWalletId = option.id
+                                        walletExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
 
                 ExposedDropdownMenuBox(
                     expanded = expanded,
@@ -160,7 +199,8 @@ fun EditTransactionDialog(
                         category = category.key,
                         amount = amount,
                         dateEpochDay = date.toEpochDay(),
-                        note = note.trim()
+                        note = note.trim(),
+                        walletId = if (isTransfer) tx.walletId else (effectiveWallet?.id ?: tx.walletId)
                     )
                 )
                 onDismiss()

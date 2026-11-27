@@ -2,6 +2,12 @@
 
 Aplikasi pencatat uang yang ringan — money management untuk gaji Rp1.000.000/bulan.
 
+**v1.12.0 — Dompet default, edit dompet transaksi & fix piutang:**
+- Dompet bisa di-set sebagai default (bintang di kartu dompet, tab Anggaran; atau "Dompet utama", tab Akun) — dompet itu yang selalu kepilih duluan saat catat transaksi.
+- Edit transaksi di riwayat kini bisa ganti dompet asal (dropdown "Dompet", hanya dompet bermata uang sama; transfer tidak dapat ganti dompet).
+- Piutang yang dibayar balik tidak ikut alokasi otomatis (hanya ke depan).
+- Migrasi database v8 → v9 (kolom `isDefault` di dompet).
+
 **v1.11.3 — Bayar paylater/utang kini berkategori sendiri:**
 - Kategori baru Paylater & Utang (pengeluaran) dan Piutang (pemasukan); `recordDebtPayment` kini memakai keduanya, bukan lagi Lain-lain.
 - Migrasi database v7 → v8 memindahkan pembayaran paylater/utang dan penerimaan piutang yang sudah tercatat ke kategori baru.

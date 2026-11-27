@@ -78,12 +78,13 @@ jobs:
           VERSION_NAME: ${{ steps.apk.outputs.version }}
         run: |
           cat > RELEASE_NOTES.md <<'EOF'
-          ## do.it v1.11.3 — Bayar paylater/utang kini berkategori sendiri
+          ## do.it v1.12.0 — Dompet default, edit dompet transaksi & fix piutang
 
-          - **Bayar paylater/utang tidak lagi masuk "Lain-lain":** ada kategori pengeluaran baru **Paylater & Utang**, dan pemasukan dari piutang yang dibayar balik kini berkategori **Piutang**. Pembayaran ke depan tercatat dengan kategori ini, lengkap dengan ikon dan warna sendiri di riwayat dan laporan.
-          - **Riwayat lama ikut dibenerin:** pembayaran paylater/utang dan penerimaan piutang yang sudah tercatat sebelumnya otomatis dipindah ke kategori baru saat aplikasi dibuka (migrasi database v7 → v8, hanya mengubah kategori baris-baris itu).
+          - **Dompet bisa di-set sebagai default:** tap bintang di kartu dompet (tab Anggaran) atau pilih di "Dompet utama" (tab Akun) — dompet itu yang selalu kepilih duluan saat catat transaksi. Kalau belum ada yang dipilih, kelakuannya tetap seperti biasa (dompet terakhir dipakai).
+          - **Edit transaksi di riwayat kini bisa ganti dompet asal:** dropdown "Dompet" baru di dialog edit, hanya dompet bermata uang sama; saldo ikut pindah otomatis. Transfer tidak dapat ganti dompet.
+          - **Piutang yang dibayar balik tidak ikut alokasi otomatis:** pemasukan berkategori Piutang kini dilewati dari pembagian 20/10/70, karena itu uang sendiri yang kembali, bukan pemasukan baru — Tabungan tidak lagi membengkak karenanya. Hanya berlaku ke depan; alokasi yang sudah tercatat sebelumnya tidak diubah.
 
-          Database v7 → v8 (migrasi resmi, tanpa hapus data).
+          Database v8 → v9 (migrasi resmi, tanpa hapus data).
 
           Published signed release and debug APKs.
           EOF
@@ -93,7 +94,7 @@ jobs:
             "${{ steps.apk.outputs.release_path }}.sha256" \
             "${{ steps.apk.outputs.debug_path }}" \
             "${{ steps.apk.outputs.debug_path }}.sha256" \
-            --title "do.it $RELEASE_TAG (Bayar paylater/utang kini berkategori sendiri)" \
+            --title "do.it $RELEASE_TAG (Dompet default, edit dompet transaksi & fix piutang)" \
             --notes-file RELEASE_NOTES.md \
             --latest
 

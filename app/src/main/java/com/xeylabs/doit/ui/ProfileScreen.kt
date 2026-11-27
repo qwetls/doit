@@ -72,7 +72,6 @@ fun ProfileScreen(
     val displayName by viewModel.displayName.collectAsState()
     val defaultCurrency by viewModel.defaultCurrency.collectAsState()
     val wallets by viewModel.wallets.collectAsState()
-    val lastWalletId by viewModel.lastWalletId.collectAsState()
     val monthlyIncome by viewModel.uiState.collectAsState()
     val transactionCount by viewModel.transactionCount.collectAsState()
     val recurrings by viewModel.recurrings.collectAsState()
@@ -204,8 +203,8 @@ fun ProfileScreen(
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(wallets, key = { it.id }) { wallet ->
                         FilterChip(
-                            selected = lastWalletId == wallet.id,
-                            onClick = { viewModel.setDefaultWallet(wallet.id) },
+                            selected = wallet.isDefault,
+                            onClick = { viewModel.setDefaultWallet(wallet) },
                             label = { Text(wallet.name) }
                         )
                     }

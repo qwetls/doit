@@ -16,7 +16,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -163,6 +165,7 @@ fun WalletsSection(viewModel: MainViewModel) {
                                 onDelete = if (wallets.size > 1) {
                                     { walletToDelete = walletBalance.wallet }
                                 } else null,
+                                onSetDefault = { viewModel.setDefaultWallet(walletBalance.wallet) },
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -246,6 +249,7 @@ private fun WalletGridCell(
     onClick: () -> Unit,
     onEdit: () -> Unit,
     onDelete: (() -> Unit)?,
+    onSetDefault: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val currency = walletCurrency(wallet)
@@ -279,6 +283,17 @@ private fun WalletGridCell(
                     )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = onSetDefault,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            if (wallet.isDefault) Icons.Filled.Star else Icons.Outlined.Star,
+                            contentDescription = "Jadikan dompet default",
+                            tint = if (wallet.isDefault) Emerald else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                     IconButton(
                         onClick = onEdit,
                         modifier = Modifier.size(28.dp)
@@ -318,7 +333,8 @@ private fun WalletGridCell(
                     fontWeight = FontWeight.Medium
                 )
                 Text(
-                    WalletType.fromName(wallet.type).label + " · " + currency.symbol,
+                    WalletType.fromName(wallet.type).label + " · " + currency.symbol +
+                        if (wallet.isDefault) " · Default" else "",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

@@ -108,6 +108,7 @@ fun QuickAddSheet(
     var selectedWalletId by remember { mutableStateOf<Long?>(null) }
     var showAddCategory by remember { mutableStateOf(false) }
     val effectiveWalletId = selectedWalletId
+        ?: wallets.firstOrNull { it.isDefault }?.id
         ?: wallets.firstOrNull { it.id == lastWalletId }?.id
         ?: wallets.firstOrNull()?.id
     val effectiveWallet = wallets.firstOrNull { it.id == effectiveWalletId }

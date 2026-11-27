@@ -24,6 +24,9 @@ interface WalletDao {
     @Delete
     suspend fun delete(wallet: Wallet)
 
+    @Query("UPDATE wallets SET isDefault = CASE WHEN id = :id THEN 1 ELSE 0 END")
+    suspend fun setDefaultWallet(id: Long)
+
     @Query("DELETE FROM wallets")
     suspend fun deleteAll()
 }

@@ -19,7 +19,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         CustomCategory::class,
         BudgetAllocation::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -172,6 +172,12 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE wallets ADD COLUMN isDefault INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -181,7 +187,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "doit.db"
-                ).addMigrations(MIGRATION_1_3, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8).build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_1_3, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9).build().also { INSTANCE = it }
             }
         }
     }

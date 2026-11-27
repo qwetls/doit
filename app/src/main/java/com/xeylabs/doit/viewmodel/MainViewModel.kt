@@ -813,6 +813,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun resolveDefaultWalletId(): Long? {
         val walletList = walletDao.getAllOnce()
         if (walletList.isEmpty()) return null
+        walletList.firstOrNull { it.isDefault }?.let { return it.id }
         val last = settings.lastWalletId.value
         return if (walletList.any { it.id == last }) last else walletList.first().id
     }
@@ -987,6 +988,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun updateWallet(wallet: Wallet) {
         viewModelScope.launch { walletDao.update(wallet) }
+    }
+
+    fun setDefaultWallet(wallet: Wallet) {
+        viewModelScope.launch { walletDao.setDefaultWallet(wallet.id) }
     }
 
     fun deleteWallet(wallet: Wallet) {
@@ -1480,7 +1485,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setBudgetTabungan(value: Long) = settings.setBudgetTabungan(value)
     fun setDisplayName(value: String) = settings.setDisplayName(value)
     fun setDefaultCurrency(code: String) = settings.setDefaultCurrency(code)
-    fun setDefaultWallet(id: Long) = settings.setLastWalletId(id)
 
     fun clearBackupMessage() {
         _backupMessage.value = null

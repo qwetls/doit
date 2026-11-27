@@ -1,5 +1,6 @@
 package com.xeylabs.doit.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -21,5 +22,6 @@ data class Wallet(
     val type: String,
     val initialBalance: Long = 0,
     // Kode mata uang: "IDR" atau "USD". Null = dompet lama (v1.4.0 ke bawah) = IDR.
-    val currency: String? = null
+    val currency: String? = null,
+    @ColumnInfo(defaultValue = "0") val isDefault: Boolean = false
 )

@@ -83,6 +83,7 @@ object BackupCodec {
         put("type", wallet.type)
         put("initialBalance", wallet.initialBalance)
         wallet.currency?.let { put("currency", it) }
+        put("isDefault", wallet.isDefault)
     }
 
     private fun goalToJson(goal: SavingsGoal): JSONObject = JSONObject().apply {
@@ -194,7 +195,8 @@ object BackupCodec {
             name = obj.getString("name"),
             type = type,
             initialBalance = obj.getLong("initialBalance"),
-            currency = if (obj.isNull("currency")) null else obj.optString("currency")
+            currency = if (obj.isNull("currency")) null else obj.optString("currency"),
+            isDefault = obj.optBoolean("isDefault", false)
         )
     }
 
